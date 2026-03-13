@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AA Workshop Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-body: #FFD8A8; --bg-staff: #FFC0CB; --glass: rgba(255, 255, 255, 0.4);
+            --text-main: #2d3436; --available: #6fdc6f; --booked: #e36b6b; --arrived: #2196F3;
+            --urgent: #ff4757; --maint: #636e72; --input-bg: #ffffff;
+        }
+        .dark-mode {
+            --bg-body: #1a1a1b; --bg-staff: #2d1b20; --glass: rgba(45, 45, 45, 0.8);
+            --text-main: #f5f6fa; --available: #00b894; --booked: #d63031; --arrived: #0984e3;
+            --input-bg: #2d3436;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: var(--bg-body); color: var(--text-main); transition: 0.3s; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        .staffMode { background: var(--bg-staff) !important; }
+
+        .siren-active .side-card.bulletin { 
+            animation: sirenAlert 0.8s infinite alternate; 
+            border: 3px solid var(--urgent) !important;
+        }
+        @keyframes sirenAlert { 
+            from { box-shadow: 0 0 5px var(--urgent); } 
+            to { box-shadow: 0 0 25px var(--urgent); background: rgba(255, 71, 87, 0.2); } 
+        }
+
+        #mainLayout { display: flex; width: 100%; max-width: 1400px; gap: 20px; }
+        #mainContent { flex: 3; text-align: center; }
+        #sidebar { flex: 1; min-width: 280px; position: sticky; top: 20px; }
+        
+        .side-card { margin-bottom: 15px; padding: 20px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .glass-panel { margin: 10px 0; padding: 20px; border-radius: 16px; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+        .bench-container { background: var(--glass); border-radius: 12px; padding: 10px; }
+        .slot-seg { height: 36px; border-radius: 6px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 4px; border: none; width: 100%; color: #fff; }
+        
+        .available { background: var(--available); color: #000; }
+        .booked { background: var(--booked); }
+        .arrived { background: var(--arrived); border: 2px solid gold; }
+        .maint { background: var(--maint); }
+
+        input, select, textarea { background: var(--input-bg); color: var(--text-main); border: 1px solid rgba(0,0,0,0.1); padding: 8px; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 5px; }
+        .button { padding: 10px 18px; margin: 4px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background: var(--text-main); color: var(--bg-body); }
+        
+        #qrDisplay { background: white; padding: 15px; border-radius: 8px; margin-top: 10px; display: none; flex-direction: column; align-items: center; color: #000; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+
+        #printArea { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; display: block; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; background: white; color: black; padding: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+        }
+    </style>
+</head>
+<body id="bodyRoot">
+
+<div id="mainLayout">
+    <div id="sidebar">
+        <div class="side-card bulletin">
+            <h3 style="margin-top:0">📢 Notice Board</h3>
+            <p id="bulletinText" style="font-size: 14px; line-height: 1.4;">Welcome to the AA Workshop!</p>
+            
+            <div id="staffNoticeTools" style="display:none; border-top: 1px solid rgba(0,0,0,0.1); padding-top:10px; margin-top:10px;">
+                <textarea id="noticeInput" rows="2" placeholder="Update message..."></textarea>
+                <button class="button" style="width:100%; background:#2ecc71; color:white;" onclick="saveNotice()">Update Notice</button>
+                <button class="button" style="width:100%; background:#e74c3c; color:white; margin-top:5px;" onclick="toggleSiren()">🚨 Siren Glow</button>
+            </div>
+
+            <div id="qrSection" style="display:none; border-top: 1px solid rgba(0,0,0,0.1); padding-top:10px; margin-top:10px;">
+                <button class="button" style="width:100%" onclick="toggleQR()">📱 Check-In QR</button>
+                <div id="qrDisplay">
+                    <div id="qrcode"></div>
+                    <p id="qrDesc" style="font-size: 10px; margin-top:8px; font-weight:bold;"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-card">
+            <h3 style="margin-top:0">🕒 Waitlist</h3>
+            <div id="waitlistContent"></div>
+            <div id="staffWlInput" style="display:none; margin-top:10px;">
+                <input type="text" id="wlName" placeholder="Student Name">
+                <button class="button" style="width:100%; margin-top:5px;" onclick="addToWaitlist()">Add to List</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainContent">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <button class="button" onclick="document.body.classList.toggle('dark-mode')">🌓 Night Mode</button>
+            <div>
+                <button class="button" id="loginBtn" onclick="openLogin()">Student Login</button>
+                <button class="button" id="staffBtn" onclick="staffLogin()">Staff Portal</button>
+                <button class="button" id="logoutBtn" style="display:none; background:#d63031; color:white;" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <h1 id="dynamicHeader">Welcome</h1>
+
+        <div id="staffMainTools" class="glass-panel" style="display:none;">
+            <button class="button" onclick="printRegister()" style="background:#3498db; color:white;">🖨️ Print Session</button>
+            <button class="button" onclick="clearEntireSlot()" style="background:#555; color:white;">🧹 Wipe Session</button>
+        </div>
+
+        <div class="glass-panel">
+            <label>Date:</label> <select id="dateSelect" style="width:auto" onchange="refreshGrid()"></select>
+            <span id="staffSessionUI" style="display:none; margin-left: 15px;">
+                <label>Session:</label>
+                <select id="slotSelect" style="width:auto" onchange="refreshGrid()">
+                    <option>Morning</option><option>Afternoon</option><option>Evening</option>
+                </select>
+            </span>
+        </div>
+
+        <div class="grid-header" style="text-align:left; font-weight:bold; margin-top:20px;">MAIN WORKSHOP (1-20)</div>
+        <div class="grid" id="mainGrid"></div>
+        <div class="grid-header" style="text-align:left; font-weight:bold; margin-top:30px;">CHING'S YARD (21-25)</div>
+        <div class="grid" id="yardGrid"></div>
+    </div>
+</div>
+
+<div id="printArea"></div>
+
+<div id="loginModal" class="modal">
+    <div class="glass-panel" style="background:var(--input-bg); width:300px;">
+        <h3 style="margin-top:0">Student Login</h3>
+        <input type="text" id="fName" placeholder="First Name">
+        <input type="text" id="sName" placeholder="Surname">
+        <input type="password" id="loginPass" placeholder="Password">
+        <button class="button" style="width:100%" onclick="doLogin()">Enter</button>
+        <button class="button" style="width:100%; background:#888; color:white; margin-top:5px;" onclick="closeLogin()">Cancel</button>
+    </div>
+</div>
+
+<script>
+let currentUser = null, isStaff = false;
+const sessionNames = ["Morning", "Afternoon", "Evening"];
+const sessionStarts = { "Morning": "10:00", "Afternoon": "14:00", "Evening": "18:00" };
+
+window.onload = () => {
+    setupDates(); 
+    loadAppData();
+    checkURLForAutoCheckin();
+    setInterval(checkTimeouts, 60000); 
+    setInterval(refreshGrid, 30000); 
+    refreshGrid();
+};
+
+function setupDates() {
+    const ds = document.getElementById("dateSelect");
+    for(let i=0; i<5; i++) {
+        let d = new Date(); d.setDate(d.getDate() + i);
+        if(d.getDay() === 0) continue; 
+        let opt = document.createElement("option"); 
+        opt.value = d.toISOString().split('T')[0]; opt.text = d.toDateString(); 
+        ds.appendChild(opt);
+    }
+}
+
+function loadAppData() {
+    const savedNotice = localStorage.getItem("aa_notice");
+    if(savedNotice) document.getElementById("bulletinText").innerText = savedNotice;
+    if(localStorage.getItem("aa_siren") === "true") document.body.classList.add("siren-active");
+    const u = localStorage.getItem("aa_user");
+    if(u) {
+        currentUser = JSON.parse(u);
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("staffBtn").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "inline-block";
+        document.getElementById("dynamicHeader").innerText = "Welcome, " + currentUser.name.split(' ')[0];
+        document.getElementById("qrSection").style.display = "block";
+    }
+    renderWaitlist();
+}
+
+function refreshGrid() {
+    const mainG = document.getElementById("mainGrid"), yardG = document.getElementById("yardGrid");
+    const d = document.getElementById("dateSelect").value;
+    const activeS = document.getElementById("slotSelect").value;
+    mainG.innerHTML = ""; yardG.innerHTML = "";
+
+    for(let i=1; i<=25; i++) {
+        const container = document.createElement("div");
+        container.className = "bench-container";
+        container.innerHTML = `<div style="font-size:10px; font-weight:bold; opacity:0.7;">BENCH ${i}</div>`;
+        sessionNames.forEach(s => {
+            if(isStaff && s !== activeS) return;
+            const key = `${d}-${s}-bench${i}`;
+            const b = JSON.parse(localStorage.getItem(key) || "null");
+            const btn = document.createElement("button");
+            btn.className = "slot-seg " + (b ? (b.type === "maint" ? "maint" : (b.arrived ? "arrived" : "booked")) : "available");
+            btn.innerText = b ? (b.type === "maint" ? "🔧" : b.name.split(' ')[0]) : s;
+            btn.onclick = () => isStaff ? handleStaffClick(key, b) : handleStudentClick(key, b, s, d);
+            container.appendChild(btn);
+        });
+        if(i <= 20) mainG.appendChild(container); else yardG.appendChild(container);
+    }
+}
+
+// FIXED WAITLIST AUTO-FILL LOGIC
+function checkWaitlistAndFill(key) {
+    let list = JSON.parse(localStorage.getItem("aa_waitlist") || "[]");
+    if (list.length > 0) {
+        let nextInLine = list.shift();
+        let newBooking = { 
+            name: nextInLine.name, 
+            email: "waitlist-" + Date.now(), 
+            arrived: false 
+        };
+        localStorage.setItem(key, JSON.stringify(newBooking));
+        localStorage.setItem("aa_waitlist", JSON.stringify(list));
+        renderWaitlist();
+        refreshGrid(); // Crucial: Refresh the visual grid
+        return true;
+    }
+    return false;
+}
+
+function handleStaffClick(key, b) {
+    const act = prompt("1: Arrived, 2: Clear Bench, 3: Maintenance");
+    if(act === "1" && b) { b.arrived = true; localStorage.setItem(key, JSON.stringify(b)); }
+    else if(act === "2") {
+        localStorage.removeItem(key);
+        checkWaitlistAndFill(key);
+    }
+    else if(act === "3") {
+        if(b && b.type === "maint") {
+            localStorage.removeItem(key);
+            checkWaitlistAndFill(key);
+        } else {
+            localStorage.setItem(key, JSON.stringify({type: "maint", name: "SERVICE"}));
+        }
+    }
+    refreshGrid();
+}
+
+function checkTimeouts() {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    sessionNames.forEach(s => {
+        const [h, m] = sessionStarts[s].split(":");
+        const limit = new Date(); limit.setHours(parseInt(h), parseInt(m) + 30, 0);
+        if (now > limit) {
+            for(let i=1; i<=25; i++) {
+                const key = `${today}-${s}-bench${i}`;
+                const b = JSON.parse(localStorage.getItem(key) || "null");
+                if(b && b.type !== "maint" && !b.arrived) {
+                    localStorage.removeItem(key);
+                    checkWaitlistAndFill(key);
+                    refreshGrid();
+                }
+            }
+        }
+    });
+}
+
+function printRegister() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    let tableHtml = `<h2>AA Workshop Register - ${d} (${s})</h2>`;
+    tableHtml += `<table><thead><tr><th>Bench</th><th>Name</th><th>Status</th></tr></thead><tbody>`;
+    for(let i=1; i<=25; i++) {
+        const b = JSON.parse(localStorage.getItem(`${d}-${s}-bench${i}`) || "null");
+        const status = b ? (b.arrived ? "PRESENT" : (b.type === "maint" ? "SERVICE" : "ABSENT")) : "EMPTY";
+        tableHtml += `<tr><td>Bench ${i}</td><td>${b ? b.name : "-"}</td><td>${status}</td></tr>`;
+    }
+    tableHtml += `</tbody></table>`;
+    document.getElementById("printArea").innerHTML = tableHtml;
+    window.print();
+}
+
+function clearEntireSlot() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    if(confirm(`Are you sure you want to WIPE all bookings for ${s}?`)) {
+        for(let i=1; i<=25; i++) {
+            const key = `${d}-${s}-bench${i}`;
+            localStorage.removeItem(key);
+            checkWaitlistAndFill(key);
+        }
+        refreshGrid();
+    }
+}
+
+function staffLogin() {
+    if(prompt("PIN:") === "workshop123") {
+        isStaff = true; document.body.classList.add("staffMode");
+        document.getElementById("staffSessionUI").style.display = "inline-block"; 
+        document.getElementById("staffMainTools").style.display = "block";
+        document.getElementById("staffNoticeTools").style.display = "block";
+        document.getElementById("staffWlInput").style.display = "block";
+        document.getElementById("qrSection").style.display = "block";
+        document.getElementById("loginBtn").style.display = "none"; 
+        document.getElementById("staffBtn").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "inline-block"; 
+        refreshGrid(); renderWaitlist();
+    }
+}
+
+function saveNotice() {
+    const txt = document.getElementById("noticeInput").value;
+    localStorage.setItem("aa_notice", txt);
+    document.getElementById("bulletinText").innerText = txt;
+}
+
+function toggleSiren() {
+    const state = document.body.classList.toggle("siren-active");
+    localStorage.setItem("aa_siren", state);
+}
+
+function addToWaitlist() {
+    const n = document.getElementById("wlName").value; if(!n) return;
+    let list = JSON.parse(localStorage.getItem("aa_waitlist") || "[]");
+    list.push({name: n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+    localStorage.setItem("aa_waitlist", JSON.stringify(list));
+    document.getElementById("wlName").value = ""; 
+    renderWaitlist();
+    // After adding to waitlist, check if there's an open bench immediately
+    const d = document.getElementById("dateSelect").value;
+    const activeS = document.getElementById("slotSelect").value;
+    for(let i=1; i<=25; i++) {
+        const key = `${d}-${activeS}-bench${i}`;
+        if(!localStorage.getItem(key)) {
+            checkWaitlistAndFill(key);
+            break;
+        }
+    }
+}
+
+function renderWaitlist() {
+    const cont = document.getElementById("waitlistContent"), list = JSON.parse(localStorage.getItem("aa_waitlist") || "[]");
+    cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
+    list.forEach((item, idx) => {
+        const div = document.createElement("div");
+        div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
+        div.innerHTML = `<span><b>${item.name}</b></span>`;
+        if(isStaff) {
+            const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
+            del.onclick = () => { list.splice(idx,1); localStorage.setItem("aa_waitlist", JSON.stringify(list)); renderWaitlist(); };
+            div.appendChild(del);
+        }
+        cont.appendChild(div);
+    });
+}
+
+function handleStudentClick(key, b, s, d) {
+    if(!currentUser) { openLogin(); return; }
+    if(b) {
+        if(b.type === "maint") return;
+        if(b.email === currentUser.email && confirm("Cancel?")) { 
+            localStorage.removeItem(key); 
+            checkWaitlistAndFill(key); 
+            refreshGrid(); 
+        }
+    } else {
+        let already = false;
+        for(let j=1; j<=25; j++) { if(localStorage.getItem(`${d}-${s}-bench${j}`)?.includes(currentUser.email)) already = true; }
+        if(already) { alert("One bench per session only."); return; }
+        localStorage.setItem(key, JSON.stringify({...currentUser, arrived: false})); 
+        refreshGrid();
+    }
+}
+
+function doLogin() {
+    const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
+    if(f && s && p.toLowerCase() === f.toLowerCase()) {
+        currentUser = { name: f + " " + s, email: f.toLowerCase() + "." + s.toLowerCase() + "@aaschool.ac.uk" };
+        localStorage.setItem("aa_user", JSON.stringify(currentUser)); location.reload();
+    }
+}
+function toggleQR() {
+    const q = document.getElementById("qrDisplay");
+    if (q.style.display === "flex") q.style.display = "none";
+    else {
+        q.style.display = "flex";
+        const checkinURL = window.location.href.split('?')[0] + "?checkin=true";
+        document.getElementById("qrcode").innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), { text: checkinURL, width: 140, height: 140 });
+        document.getElementById("qrDesc").innerText = isStaff ? "WALL CHECK-IN" : "MY ID";
+    }
+}
+function checkURLForAutoCheckin() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('checkin') && currentUser) {
+        const today = new Date().toISOString().split('T')[0];
+        const h = new Date().getHours();
+        let s = (h < 13) ? "Morning" : (h < 17) ? "Afternoon" : "Evening";
+        for(let i=1; i<=25; i++) {
+            const key = `${today}-${s}-bench${i}`;
+            const b = JSON.parse(localStorage.getItem(key) || "null");
+            if(b && b.email === currentUser.email) {
+                b.arrived = true; localStorage.setItem(key, JSON.stringify(b));
+                alert("Checked in!"); window.history.replaceState({}, document.title, window.location.pathname);
+                refreshGrid(); return;
+            }
+        }
+    }
+}
+function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
+function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
+function logout() { localStorage.removeItem("aa_user"); location.reload(); }
+</script>
+</body>
+</html>
