@@ -234,18 +234,31 @@ function refreshGrid() {
     });
 }
 
-function checkWaitlistAndFill(path) {
-    db.ref('aa_waitlist').once('value', (snap) => {
+function checkWaitlistAndFill(benchPath) {
+    // 1. Check the waitlist (using the correct name 'waitlist')
+    get(ref(db, 'waitlist')).then((snap) => {
         let list = snap.val() || [];
+        
         if (list.length > 0) {
+            // 2. Take the first person
             let nextInLine = list.shift();
+            
+            // 3. Create their new booking info
             let newBooking = { 
+                status: 'occupied',
                 name: nextInLine.name, 
-                email: "waitlist-" + Date.now(), 
-                arrived: false 
+                sid: nextInLine.sid || "N/A", // Use SID instead of email
+                time: new Date().toLocaleTimeString()
             };
-            db.ref(path).set(newBooking);
-            db.ref('aa_waitlist').set(list);
+            
+            // 4. Put them on the bench and update the list
+            set(ref(db, benchPath), newBooking);
+            set(ref(db, 'waitlist'), list);
+            
+            console.log("Auto-assigned: " + nextInLine.name);
+        } else {
+            // 5. If list is empty, make the bench vacant
+            set(ref(db, benchPath), { status: 'vacant', name: '', sid: '' });
         }
     });
 }
@@ -432,3 +445,4 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </body>
 
 </html>
+
