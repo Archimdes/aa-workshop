@@ -151,7 +151,7 @@ const firebaseConfig = {
   storageBucket: "aa-workshop-booking.firebasestorage.app",
   messagingSenderId: "194937255422",
   appId: "1:194937255422:web:23a18c6ba4e023645e7caf",
-databaseURL: "https://aa-workshop-booking-default-rtdb.europe-west1.firebasedatabase.app/"
+  databaseURL: "https://aa-workshop-booking-default-rtdb.europe-west1.firebasedatabase.app/"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -165,7 +165,7 @@ window.onload = () => {
     loadAppData();
     checkURLForAutoCheckin();
     setInterval(checkTimeouts, 60000); 
-    refreshGrid(); // Data is now real-time, no need for refresh interval
+    refreshGrid();
 };
 
 function setupDates() {
@@ -180,11 +180,9 @@ function setupDates() {
 }
 
 function loadAppData() {
-    // Sync Notice Board from Cloud
     db.ref('aa_notice').on('value', (s) => {
         if(s.val()) document.getElementById("bulletinText").innerText = s.val();
     });
-    // Sync Siren from Cloud
     db.ref('aa_siren').on('value', (s) => {
         if(s.val()) document.body.classList.add("siren-active");
         else document.body.classList.remove("siren-active");
@@ -207,7 +205,6 @@ function refreshGrid() {
     const d = document.getElementById("dateSelect").value;
     const activeS = document.getElementById("slotSelect").value;
     
-    // Connect to Real-time Cloud Data
     db.ref(`bookings/${d}`).on('value', (snapshot) => {
         const data = snapshot.val() || {};
         mainG.innerHTML = ""; yardG.innerHTML = "";
@@ -224,7 +221,6 @@ function refreshGrid() {
                 btn.className = "slot-seg " + (b ? (b.type === "maint" ? "maint" : (b.arrived ? "arrived" : "booked")) : "available");
                 btn.innerText = b ? (b.type === "maint" ? "🔧" : b.name.split(' ')[0]) : s;
                 
-                // Key construction for Firebase
                 const path = `bookings/${d}/${s}/bench${i}`;
                 btn.onclick = () => isStaff ? handleStaffClick(path, b) : handleStudentClick(path, b, s, d);
                 container.appendChild(btn);
@@ -234,76 +230,35 @@ function refreshGrid() {
     });
 }
 
-// 1. FUNCTION FOR STAFF: Clear a bench and pull from waitlist
-window.checkWaitlistAndFill = async function(benchId) {
-    const benchRef = ref(db, 'benches/' + benchId);
-    const waitlistRef = ref(db, 'waitlist');
-
-    try {
-        const wlSnap = await get(waitlistRef);
-        let list = wlSnap.val() || [];
-
+// --- FIXED AUTO-ASSIGN LOGIC ---
+function checkWaitlistAndFill(path) {
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
         if (list.length > 0) {
-            // Take the first person from the queue
-            const nextStudent = list.shift();
-
-            // Put them in the bench
-            await set(benchRef, {
-                status: 'occupied',
-                name: nextStudent.name,
-                sid: nextStudent.sid || 'N/A',
-                time: new Date().toLocaleTimeString()
-            });
-
-            // Update the waitlist
-            await set(waitlistRef, list);
-            console.log(`Auto-assigned ${nextStudent.name} to ${benchId}`);
-        } else {
-            // No one waiting? Just make it vacant
-            await set(benchRef, { status: 'vacant', name: '', sid: '' });
+            let nextInLine = list.shift();
+            let newBooking = { 
+                name: nextInLine.name, 
+                email: "waitlist-" + Date.now(), 
+                arrived: false 
+            };
+            db.ref(path).set(newBooking);
+            db.ref('aa_waitlist').set(list);
         }
-    } catch (e) {
-        console.error("Staff Action Error:", e);
-    }
-};
+    });
+}
 
-// 2. FUNCTION FOR STUDENTS: Join waitlist OR take free bench
-window.addToWaitlist = async function(name, sid) {
-    try {
-        const benchesSnap = await get(ref(db, 'benches'));
-        const benches = benchesSnap.val() || {};
-        let freeBenchId = null;
+function addToWaitlist() {
+    const nameInput = document.getElementById("wlName");
+    const name = nameInput.value.trim();
+    if(!name) return;
 
-        // Check if any bench is currently vacant
-        for (let id in benches) {
-            if (benches[id].status === 'vacant') {
-                freeBenchId = id;
-                break;
-            }
-        }
-
-        if (freeBenchId) {
-            // Skip waitlist, assign immediately
-            await set(ref(db, 'benches/' + freeBenchId), {
-                status: 'occupied',
-                name: name,
-                sid: sid,
-                time: new Date().toLocaleTimeString()
-            });
-            alert(`Success! Bench ${freeBenchId} was free, so you've been assigned immediately.`);
-        } else {
-            // Add to the end of the waitlist
-            const waitlistRef = ref(db, 'waitlist');
-            const wlSnap = await get(waitlistRef);
-            let list = wlSnap.val() || [];
-            list.push({ name: name, sid: sid });
-            await set(waitlistRef, list);
-            alert("All benches are full. You have been added to the waitlist.");
-        }
-    } catch (e) {
-        console.error("Waitlist Join Error:", e);
-    }
-};
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
+        list.push({ name: name, time: new Date().toLocaleTimeString() });
+        db.ref('aa_waitlist').set(list);
+        nameInput.value = "";
+    });
+}
 
 function handleStaffClick(path, b) {
     const act = prompt("1: Arrived, 2: Clear Bench, 3: Maintenance");
@@ -324,6 +279,43 @@ function handleStaffClick(path, b) {
     }
 }
 
+function renderWaitlist() {
+    db.ref('aa_waitlist').on('value', (snap) => {
+        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
+        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
+        list.forEach((item, idx) => {
+            const div = document.createElement("div");
+            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
+            div.innerHTML = `<span><b>${item.name}</b></span>`;
+            if(isStaff) {
+                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
+                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
+                div.appendChild(del);
+            }
+            cont.appendChild(div);
+        });
+    });
+}
+
+function handleStudentClick(path, b, s, d) {
+    if(!currentUser) { openLogin(); return; }
+    if(b) {
+        if(b.type === "maint") return;
+        if(b.email === currentUser.email && confirm("Cancel?")) { 
+            db.ref(path).remove();
+            checkWaitlistAndFill(path);
+        }
+    } else {
+        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+            const sessionData = snap.val() || {};
+            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
+            if(already) { alert("One bench per session only."); return; }
+            db.ref(path).set({...currentUser, arrived: false});
+        });
+    }
+}
+
+// --- ALL OTHER FEATURES PRESERVED ---
 function checkTimeouts() {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
@@ -397,76 +389,6 @@ function toggleSiren() {
     db.ref('aa_siren').set(!currentState);
 }
 
-window.addToWaitlist = async function(name, sid) {
-    // 1. Get all benches to see if one is free
-    const benchesSnap = await get(ref(db, 'benches'));
-    const benches = benchesSnap.val();
-    let freeBenchId = null;
-
-    // 2. Find the first 'vacant' bench
-    for (let id in benches) {
-        if (benches[id].status === 'vacant') {
-            freeBenchId = id;
-            break; 
-        }
-    }
-
-    if (freeBenchId) {
-        // 3. If a bench is free, assign them IMMEDIATELY
-        await set(ref(db, 'benches/' + freeBenchId), {
-            status: 'occupied',
-            name: name,
-            sid: sid,
-            time: new Date().toLocaleTimeString()
-        });
-        alert(`${name} assigned to ${freeBenchId} (No wait needed!)`);
-    } else {
-        // 4. If no benches are free, add to waitlist as usual
-        const waitlistRef = ref(db, 'waitlist');
-        const wlSnap = await get(waitlistRef);
-        let list = wlSnap.val() || [];
-        list.push({ name: name, sid: sid });
-        await set(waitlistRef, list);
-        alert("Benches full! Added to waitlist.");
-    }
-};
-
-function renderWaitlist() {
-    db.ref('aa_waitlist').on('value', (snap) => {
-        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
-        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
-        list.forEach((item, idx) => {
-            const div = document.createElement("div");
-            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
-            div.innerHTML = `<span><b>${item.name}</b></span>`;
-            if(isStaff) {
-                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
-                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
-                div.appendChild(del);
-            }
-            cont.appendChild(div);
-        });
-    });
-}
-
-function handleStudentClick(path, b, s, d) {
-    if(!currentUser) { openLogin(); return; }
-    if(b) {
-        if(b.type === "maint") return;
-        if(b.email === currentUser.email && confirm("Cancel?")) { 
-            db.ref(path).remove();
-            checkWaitlistAndFill(path);
-        }
-    } else {
-        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
-            const sessionData = snap.val() || {};
-            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
-            if(already) { alert("One bench per session only."); return; }
-            db.ref(path).set({...currentUser, arrived: false});
-        });
-    }
-}
-
 function doLogin() {
     const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
     if(f && s && p.toLowerCase() === f.toLowerCase()) {
@@ -509,9 +431,6 @@ function closeLogin() { document.getElementById("loginModal").style.display = "n
 function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
-
 </html>
-
-
 
 
