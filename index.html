@@ -160,7 +160,12 @@
         <button class="button" style="width:100%; background:#888; color:white; margin-top:5px;" onclick="closeLogin()">Cancel</button>
     </div>
 </div>
-
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script type="text/javascript">
+   (function(){
+      emailjs.init("AT2LZmBWCE6mMkv_A"); 
+   })();
+</script>
 <script>
 // --- FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -384,6 +389,7 @@ function addToWaitlist() {
 
 function handleStudentClick(path, b, s, d) {
     if(!currentUser) { openLogin(); return; }
+    
     if(b) {
         if(b.type === "maint") return;
         if(b.email === currentUser.email && confirm("Cancel?")) { 
@@ -393,12 +399,45 @@ function handleStudentClick(path, b, s, d) {
         db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
             const sessionData = snap.val() || {};
             let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
-            if(already) { alert("One bench per session only."); return; }
-            db.ref(path).set({...currentUser, arrived: false});
+            
+            if(already) { 
+                alert("One bench per session only."); 
+                return; 
+            }
+
+            // 1. Save to Firebase
+            db.ref(path).set({...currentUser, arrived: false}).then(() => {
+                
+                // 2. Trigger the Confirmation Email
+                // This extracts the bench number from the path (e.g., "bench5" -> "Bench 5")
+                const benchLabel = "Bench " + path.split('bench')[1];
+                
+                sendBookingEmail({
+                    bench: benchLabel,
+                    date: d,
+                    session: s
+                });
+
+                alert("Booked successfully! A confirmation email is on its way.");
+            }).catch(err => {
+                alert("Booking failed: " + err.message);
+            });
         });
     }
 }
+    function sendBookingEmail(bookingDetails) {
+    const templateParams = {
+        user_name: currentUser.name,
+        user_email: currentUser.email,
+        bench_no: bookingDetails.bench,
+        date: bookingDetails.date,
+        session: bookingDetails.session
+    };
 
+    emailjs.send('service_ms1erxl', 'template_xn7kjya', templateParams)
+        .then(() => console.log('Confirmation email sent!'))
+        .catch((err) => console.error('Email error:', err));
+}
 // --- UTILITY FUNCTIONS ---
 function checkTimeouts() {
     const today = new Date().toISOString().split('T')[0];
@@ -473,6 +512,7 @@ function checkURLForAutoCheckin() { /* ... existing QR checkin logic ... */ }
 </script>
 </body>
 </html>
+
 
 
 
