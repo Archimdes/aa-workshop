@@ -249,23 +249,32 @@ function doSignUp() {
 function doLogin() {
     const emailRaw = document.getElementById("loginEmail").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value;
+    
+    // This is the critical line: change dots to commas
     const emailKey = emailRaw.replace(/\./g, ',');
+
+    console.log("Searching for user key: " + emailKey);
 
     db.ref('users/' + emailKey).once('value', (snap) => {
         const userData = snap.val();
-        if(userData && userData.password === p) {
-            currentUser = { 
-                name: userData.fullName, 
-                email: userData.email 
-            };
-            localStorage.setItem("aa_user", JSON.stringify(currentUser));
-            location.reload(); 
+        
+        if(userData) {
+            console.log("User found! Checking password...");
+            if(userData.password === p) {
+                currentUser = { 
+                    name: userData.fullName, 
+                    email: userData.email 
+                };
+                localStorage.setItem("aa_user", JSON.stringify(currentUser));
+                location.reload(); 
+            } else {
+                alert("Wrong password.");
+            }
         } else {
-            alert("Invalid email or password. Did you Sign Up first?");
+            alert("User not found. Make sure you signed up with: " + emailRaw);
         }
     });
 }
-
 // --- GRID & WAITLIST FUNCTIONS ---
 function refreshGrid() {
     const mainG = document.getElementById("mainGrid"), yardG = document.getElementById("yardGrid");
@@ -430,6 +439,7 @@ function checkURLForAutoCheckin() { /* ... existing QR checkin logic ... */ }
 </script>
 </body>
 </html>
+
 
 
 
