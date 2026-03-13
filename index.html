@@ -276,27 +276,36 @@ function handleStaffClick(path, b) {
         db.ref(path).update({arrived: true}); 
     }
     else if(act === "2") {
-        // Step 1: Check waitlist
+        // --- THIS IS THE AUTO-ASSIGN LOGIC ---
         db.ref('aa_waitlist').once('value', (snap) => {
             let list = snap.val() || [];
             
             if (list.length > 0) {
-                // Step 2: If someone is waiting, MOVE them
+                // If someone is in the waitlist, move them to the bench
                 let nextInLine = list.shift();
                 db.ref(path).set({
                     name: nextInLine.name,
-                    email: "auto-assigned@aaschool.ac.uk",
+                    email: "waitlist-" + Date.now() + "@aaschool.ac.uk",
                     arrived: false
+                }).then(() => {
+                    // Update the waitlist only after the bench is set
+                    db.ref('aa_waitlist').set(list);
                 });
-                db.ref('aa_waitlist').set(list);
+                alert("Assigned " + nextInLine.name + " from the waitlist!");
             } else {
-                // Step 3: If no one is waiting, just CLEAR
+                // If no one is waiting, just clear the bench as normal
                 db.ref(path).remove();
             }
         });
     }
     else if(act === "3") {
-        db.ref(path).set({type: "maint", name: "SERVICE"});
+        if(b && b.type === "maint") {
+            // If already maintenance, clearing it also checks the waitlist
+            db.ref(path).remove();
+            handleStaffClick(path, null); // Recursively trigger the waitlist check
+        } else {
+            db.ref(path).set({type: "maint", name: "SERVICE"});
+        }
     }
 }
 
@@ -453,5 +462,6 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
 </html>
+
 
 
