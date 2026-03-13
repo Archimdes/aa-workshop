@@ -272,40 +272,37 @@ function addToWaitlist() {
 function handleStaffClick(path, b) {
     const act = prompt("1: Arrived, 2: Clear/Auto-Assign, 3: Maintenance");
     
-    if(act === "1" && b) { 
-        db.ref(path).update({arrived: true}); 
-    }
-    else if(act === "2") {
-        // --- THIS IS THE AUTO-ASSIGN LOGIC ---
+    if (act === "1" && b) { 
+        db.ref(path).update({ arrived: true }); 
+    } 
+    else if (act === "2") {
+        // Go directly to the waitlist folder
         db.ref('aa_waitlist').once('value', (snap) => {
-            let list = snap.val() || [];
+            const list = snap.val() || [];
             
             if (list.length > 0) {
-                // If someone is in the waitlist, move them to the bench
-                let nextInLine = list.shift();
+                // Someone is waiting! Pull them out.
+                const nextInLine = list.shift();
+                
+                // Put them in the bench slot
                 db.ref(path).set({
                     name: nextInLine.name,
                     email: "waitlist-" + Date.now() + "@aaschool.ac.uk",
                     arrived: false
-                }).then(() => {
-                    // Update the waitlist only after the bench is set
-                    db.ref('aa_waitlist').set(list);
                 });
-                alert("Assigned " + nextInLine.name + " from the waitlist!");
+                
+                // Update the waitlist to remove them
+                db.ref('aa_waitlist').set(list);
+                
+                console.log("Success! Assigned " + nextInLine.name);
             } else {
-                // If no one is waiting, just clear the bench as normal
+                // No one is waiting, just empty the bench
                 db.ref(path).remove();
             }
         });
-    }
-    else if(act === "3") {
-        if(b && b.type === "maint") {
-            // If already maintenance, clearing it also checks the waitlist
-            db.ref(path).remove();
-            handleStaffClick(path, null); // Recursively trigger the waitlist check
-        } else {
-            db.ref(path).set({type: "maint", name: "SERVICE"});
-        }
+    } 
+    else if (act === "3") {
+        db.ref(path).set({ type: "maint", name: "SERVICE" });
     }
 }
 
@@ -462,6 +459,7 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
 </html>
+
 
 
 
