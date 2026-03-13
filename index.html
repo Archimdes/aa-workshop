@@ -358,15 +358,39 @@ function toggleSiren() {
     db.ref('aa_siren').set(!currentState);
 }
 
-function addToWaitlist() {
-    const n = document.getElementById("wlName").value; if(!n) return;
-    db.ref('aa_waitlist').once('value', (snap) => {
-        let list = snap.val() || [];
-        list.push({name: n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
-        db.ref('aa_waitlist').set(list);
-        document.getElementById("wlName").value = ""; 
-    });
-}
+window.addToWaitlist = async function(name, sid) {
+    // 1. Get all benches to see if one is free
+    const benchesSnap = await get(ref(db, 'benches'));
+    const benches = benchesSnap.val();
+    let freeBenchId = null;
+
+    // 2. Find the first 'vacant' bench
+    for (let id in benches) {
+        if (benches[id].status === 'vacant') {
+            freeBenchId = id;
+            break; 
+        }
+    }
+
+    if (freeBenchId) {
+        // 3. If a bench is free, assign them IMMEDIATELY
+        await set(ref(db, 'benches/' + freeBenchId), {
+            status: 'occupied',
+            name: name,
+            sid: sid,
+            time: new Date().toLocaleTimeString()
+        });
+        alert(`${name} assigned to ${freeBenchId} (No wait needed!)`);
+    } else {
+        // 4. If no benches are free, add to waitlist as usual
+        const waitlistRef = ref(db, 'waitlist');
+        const wlSnap = await get(waitlistRef);
+        let list = wlSnap.val() || [];
+        list.push({ name: name, sid: sid });
+        await set(waitlistRef, list);
+        alert("Benches full! Added to waitlist.");
+    }
+};
 
 function renderWaitlist() {
     db.ref('aa_waitlist').on('value', (snap) => {
@@ -448,5 +472,6 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </body>
 
 </html>
+
 
 
