@@ -139,11 +139,15 @@
             <button onclick="showAuth('signup')" id="tab-signup" style="flex:1; border:none; background:none; padding:10px; cursor:pointer; opacity:0.5;">Sign Up</button>
         </div>
 
-        <div id="loginFields">
-            <input type="email" id="loginEmail" placeholder="Email Address">
-            <input type="password" id="loginPass" placeholder="Password">
-            <button class="button" style="width:100%" onclick="doLogin()">Login</button>
-        </div>
+       <div id="loginFields">
+    <input type="email" id="loginEmail" placeholder="Email Address">
+    <input type="password" id="loginPass" placeholder="Password">
+    <button class="button" style="width:100%" onclick="doLogin()">Login</button>
+    
+    <p style="text-align:center; font-size:12px; margin-top:10px;">
+        <a href="#" onclick="forgotPassword()" style="color:var(--arrived); text-decoration:none;">Forgot Password?</a>
+    </p>
+</div>
 
         <div id="signupFields" style="display:none;">
             <input type="text" id="regFName" placeholder="First Name">
@@ -430,7 +434,22 @@ function staffLogin() {
         refreshGrid(); renderWaitlist();
     }
 }
+function forgotPassword() {
+    const email = document.getElementById("loginEmail").value.trim();
+    
+    if (!email) {
+        alert("Please enter your email address in the login box first, then click 'Forgot Password'.");
+        return;
+    }
 
+    firebase.auth().sendPasswordResetEmail(email)
+        .then(() => {
+            alert("Password reset email sent! Please check your inbox (and spam folder).");
+        })
+        .catch((error) => {
+            alert("Error: " + error.message);
+        });
+}
 function saveNotice() { db.ref('aa_notice').set(document.getElementById("noticeInput").value); }
 function toggleSiren() { 
     db.ref('aa_siren').once('value', snap => db.ref('aa_siren').set(!snap.val())); 
@@ -454,6 +473,7 @@ function checkURLForAutoCheckin() { /* ... existing QR checkin logic ... */ }
 </script>
 </body>
 </html>
+
 
 
 
