@@ -230,19 +230,28 @@ function refreshGrid() {
     });
 }
 
-// --- FIXED AUTO-ASSIGN LOGIC ---
 function checkWaitlistAndFill(path) {
+    // 1. Look in the waitlist
     db.ref('aa_waitlist').once('value', (snap) => {
         let list = snap.val() || [];
+        
         if (list.length > 0) {
+            // 2. Grab the next student
             let nextInLine = list.shift();
+            
+            // 3. Create the booking object to match your existing system
             let newBooking = { 
                 name: nextInLine.name, 
-                email: "waitlist-" + Date.now(), 
+                email: nextInLine.name.toLowerCase().replace(" ", ".") + "@aaschool.ac.uk", 
                 arrived: false 
             };
-            db.ref(path).set(newBooking);
-            db.ref('aa_waitlist').set(list);
+            
+            // 4. Force the update to the specific bench path (Date/Session/Bench)
+            db.ref(path).set(newBooking).then(() => {
+                // 5. Only remove from waitlist if the bench update worked
+                db.ref('aa_waitlist').set(list);
+                console.log("Moved to bench: " + nextInLine.name);
+            });
         }
     });
 }
@@ -432,5 +441,6 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
 </html>
+
 
 
