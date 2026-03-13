@@ -151,7 +151,7 @@ const firebaseConfig = {
   storageBucket: "aa-workshop-booking.firebasestorage.app",
   messagingSenderId: "194937255422",
   appId: "1:194937255422:web:23a18c6ba4e023645e7caf",
-  databaseURL: "https://aa-workshop-booking-default-rtdb.firebaseio.com"
+databaseURL: "https://aa-workshop-booking-default-rtdb.europe-west1.firebasedatabase.app/"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -430,4 +430,5 @@ function closeLogin() { document.getElementById("loginModal").style.display = "n
 function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
+
 </html>
