@@ -6,6 +6,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <style>
         :root {
             --bg-body: #FFD8A8; --bg-staff: #FFC0CB; --glass: rgba(255, 255, 255, 0.4);
@@ -224,56 +225,70 @@ function showAuth(type) {
     document.getElementById('tab-signup').style.borderBottom = type === 'signup' ? '2px solid var(--arrived)' : 'none';
 }
 
+// --- NEW AUTHENTICATION LOGIC ---
+
 function doSignUp() {
     const f = document.getElementById("regFName").value.trim();
     const s = document.getElementById("regSName").value.trim();
-    const emailRaw = document.getElementById("regEmail").value.trim().toLowerCase();
-    const p = document.getElementById("regPass").value;
+    const email = document.getElementById("regEmail").value.trim();
+    const password = document.getElementById("regPass").value;
 
-    if(!f || !s || !emailRaw || !p) { alert("Please fill all fields"); return; }
+    if(!f || !s || !email || !password) { alert("Please fill all fields"); return; }
 
-    const emailKey = emailRaw.replace(/\./g, ',');
+    // 1. Create User in Firebase Auth
+    firebase.auth().createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            const user = userCredential.user;
+            
+            // 2. Save the Name/Email to the Database (using UID, not email as key)
+            db.ref('users/' + user.uid).set({
+                fullName: f + " " + s,
+                email: email,
+                createdAt: new Date().toISOString()
+            });
 
-    db.ref('users/' + emailKey).set({
-        firstName: f,
-        surname: s,
-        fullName: f + " " + s,
-        password: p,
-        email: emailRaw
-    }).then(() => {
-        alert("Account created! Please log in now.");
-        showAuth('login');
-    }).catch(err => alert("Error: " + err.message));
+            // 3. Send Verification Email
+            user.sendEmailVerification().then(() => {
+                alert("Account created! A verification email has been sent to " + email + ". Please verify before logging in.");
+                showAuth('login');
+            });
+        })
+        .catch((error) => {
+            alert("Sign Up Error: " + error.message);
+        });
 }
 
 function doLogin() {
-    const emailRaw = document.getElementById("loginEmail").value.trim().toLowerCase();
-    const p = document.getElementById("loginPass").value;
-    
-    // This is the critical line: change dots to commas
-    const emailKey = emailRaw.replace(/\./g, ',');
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPass").value;
 
-    console.log("Searching for user key: " + emailKey);
+    // 1. Authenticate with Firebase
+    firebase.auth().signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            const user = userCredential.user;
 
-    db.ref('users/' + emailKey).once('value', (snap) => {
-        const userData = snap.val();
-        
-        if(userData) {
-            console.log("User found! Checking password...");
-            if(userData.password === p) {
+            // 2. Check if Email is Verified
+            if (!user.emailVerified) {
+                alert("Please verify your email address first! Check your inbox.");
+                firebase.auth().signOut(); // Log them back out if not verified
+                return;
+            }
+
+            // 3. Fetch user profile and save to localStorage
+            db.ref('users/' + user.uid).once('value', (snap) => {
+                const userData = snap.val();
                 currentUser = { 
-                    name: userData.fullName, 
-                    email: userData.email 
+                    name: userData ? userData.fullName : email, 
+                    email: email,
+                    uid: user.uid 
                 };
                 localStorage.setItem("aa_user", JSON.stringify(currentUser));
                 location.reload(); 
-            } else {
-                alert("Wrong password.");
-            }
-        } else {
-            alert("User not found. Make sure you signed up with: " + emailRaw);
-        }
-    });
+            });
+        })
+        .catch((error) => {
+            alert("Login Error: " + error.message);
+        });
 }
 // --- GRID & WAITLIST FUNCTIONS ---
 function refreshGrid() {
@@ -439,6 +454,7 @@ function checkURLForAutoCheckin() { /* ... existing QR checkin logic ... */ }
 </script>
 </body>
 </html>
+
 
 
 
