@@ -234,33 +234,36 @@ function refreshGrid() {
     });
 }
 
-function checkWaitlistAndFill(benchPath) {
-    // 1. Check the waitlist (using the correct name 'waitlist')
-    get(ref(db, 'waitlist')).then((snap) => {
-        let list = snap.val() || [];
+async function checkWaitlistAndFill(benchPath) {
+    // 1. Get the current waitlist
+    const waitlistRef = ref(db, 'waitlist'); // Changed from 'aa_waitlist' to match your DB
+    const snapshot = await get(waitlistRef);
+    let list = snapshot.val() || [];
+
+    if (list.length > 0) {
+        // 2. Take the first person (Shift)
+        let nextInLine = list.shift();
+
+        // 3. Update the Bench with the new person
+        await set(ref(db, benchPath), {
+            status: 'occupied',
+            name: nextInLine.name,
+            sid: nextInLine.sid || "N/A",
+            time: new Date().toLocaleTimeString()
+        });
+
+        // 4. Save the shorter waitlist back to Firebase
+        await set(waitlistRef, list);
         
-        if (list.length > 0) {
-            // 2. Take the first person
-            let nextInLine = list.shift();
-            
-            // 3. Create their new booking info
-            let newBooking = { 
-                status: 'occupied',
-                name: nextInLine.name, 
-                sid: nextInLine.sid || "N/A", // Use SID instead of email
-                time: new Date().toLocaleTimeString()
-            };
-            
-            // 4. Put them on the bench and update the list
-            set(ref(db, benchPath), newBooking);
-            set(ref(db, 'waitlist'), list);
-            
-            console.log("Auto-assigned: " + nextInLine.name);
-        } else {
-            // 5. If list is empty, make the bench vacant
-            set(ref(db, benchPath), { status: 'vacant', name: '', sid: '' });
-        }
-    });
+        console.log("Success: Moved " + nextInLine.name + " to " + benchPath);
+    } else {
+        // 5. If no one is waiting, just make it vacant
+        await set(ref(db, benchPath), {
+            status: 'vacant',
+            name: '',
+            sid: ''
+        });
+    }
 }
 
 function handleStaffClick(path, b) {
@@ -445,4 +448,5 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </body>
 
 </html>
+
 
