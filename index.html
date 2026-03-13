@@ -132,12 +132,26 @@
 <div id="printArea"></div>
 
 <div id="loginModal" class="modal">
-    <div class="glass-panel" style="background:var(--input-bg); width:300px;">
-        <h3 style="margin-top:0">Student Login</h3>
-        <input type="text" id="fName" placeholder="First Name">
-        <input type="text" id="sName" placeholder="Surname">
-        <input type="password" id="loginPass" placeholder="Password">
-        <button class="button" style="width:100%" onclick="doLogin()">Enter</button>
+    <div class="glass-panel" style="background:var(--input-bg); width:320px;">
+        <div id="authTabs" style="display:flex; margin-bottom:15px; border-bottom:1px solid #ddd;">
+            <button onclick="showAuth('login')" id="tab-login" style="flex:1; border:none; background:none; padding:10px; cursor:pointer; font-weight:bold; border-bottom:2px solid var(--arrived);">Login</button>
+            <button onclick="showAuth('signup')" id="tab-signup" style="flex:1; border:none; background:none; padding:10px; cursor:pointer; opacity:0.5;">Sign Up</button>
+        </div>
+
+        <div id="loginFields">
+            <input type="email" id="loginEmail" placeholder="Email Address">
+            <input type="password" id="loginPass" placeholder="Password">
+            <button class="button" style="width:100%" onclick="doLogin()">Login</button>
+        </div>
+
+        <div id="signupFields" style="display:none;">
+            <input type="text" id="regFName" placeholder="First Name">
+            <input type="text" id="regSName" placeholder="Surname">
+            <input type="email" id="regEmail" placeholder="Email Address">
+            <input type="password" id="regPass" placeholder="Create Password">
+            <button class="button" style="width:100%; background:#2ecc71; color:white;" onclick="doSignUp()">Create Account</button>
+        </div>
+        
         <button class="button" style="width:100%; background:#888; color:white; margin-top:5px;" onclick="closeLogin()">Cancel</button>
     </div>
 </div>
@@ -198,6 +212,57 @@ function loadAppData() {
         document.getElementById("qrSection").style.display = "block";
     }
     renderWaitlist();
+}
+    // Switch between Login and Sign Up tabs
+function showAuth(type) {
+    document.getElementById('loginFields').style.display = type === 'login' ? 'block' : 'none';
+    document.getElementById('signupFields').style.display = type === 'signup' ? 'block' : 'none';
+    document.getElementById('tab-login').style.opacity = type === 'login' ? '1' : '0.5';
+    document.getElementById('tab-signup').style.opacity = type === 'signup' ? '1' : '0.5';
+    document.getElementById('tab-login').style.borderBottom = type === 'login' ? '2px solid var(--arrived)' : 'none';
+    document.getElementById('tab-signup').style.borderBottom = type === 'signup' ? '2px solid var(--arrived)' : 'none';
+}
+
+// Handle New User Registration
+function doSignUp() {
+    const f = document.getElementById("regFName").value.trim();
+    const s = document.getElementById("regSName").value.trim();
+    const e = document.getElementById("regEmail").value.trim().toLowerCase().replace(/\./g, ','); // Firebase keys can't have dots
+    const p = document.getElementById("regPass").value;
+
+    if(!f || !s || !e || !p) { alert("Please fill all fields"); return; }
+
+    // Save to 'users' folder
+    db.ref('users/' + e).set({
+        firstName: f,
+        surname: s,
+        fullName: f + " " + s,
+        password: p, // Note: In a real app, we'd encrypt this!
+        email: e.replace(/,/g, '.')
+    }).then(() => {
+        alert("Account created! You can now login.");
+        showAuth('login');
+    });
+}
+
+// Handle Login with Email/Password
+function doLogin() {
+    const e = document.getElementById("loginEmail").value.trim().toLowerCase().replace(/\./g, ',');
+    const p = document.getElementById("loginPass").value;
+
+    db.ref('users/' + e).once('value', (snap) => {
+        const userData = snap.val();
+        if(userData && userData.password === p) {
+            currentUser = { 
+                name: userData.fullName, 
+                email: userData.email 
+            };
+            localStorage.setItem("aa_user", JSON.stringify(currentUser));
+            location.reload();
+        } else {
+            alert("Invalid email or password.");
+        }
+    });
 }
 
 function refreshGrid() {
@@ -459,6 +524,7 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
 </html>
+
 
 
 
