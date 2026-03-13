@@ -234,37 +234,76 @@ function refreshGrid() {
     });
 }
 
-async function checkWaitlistAndFill(benchPath) {
-    // 1. Get the current waitlist
-    const waitlistRef = ref(db, 'waitlist'); // Changed from 'aa_waitlist' to match your DB
-    const snapshot = await get(waitlistRef);
-    let list = snapshot.val() || [];
+// 1. FUNCTION FOR STAFF: Clear a bench and pull from waitlist
+window.checkWaitlistAndFill = async function(benchId) {
+    const benchRef = ref(db, 'benches/' + benchId);
+    const waitlistRef = ref(db, 'waitlist');
 
-    if (list.length > 0) {
-        // 2. Take the first person (Shift)
-        let nextInLine = list.shift();
+    try {
+        const wlSnap = await get(waitlistRef);
+        let list = wlSnap.val() || [];
 
-        // 3. Update the Bench with the new person
-        await set(ref(db, benchPath), {
-            status: 'occupied',
-            name: nextInLine.name,
-            sid: nextInLine.sid || "N/A",
-            time: new Date().toLocaleTimeString()
-        });
+        if (list.length > 0) {
+            // Take the first person from the queue
+            const nextStudent = list.shift();
 
-        // 4. Save the shorter waitlist back to Firebase
-        await set(waitlistRef, list);
-        
-        console.log("Success: Moved " + nextInLine.name + " to " + benchPath);
-    } else {
-        // 5. If no one is waiting, just make it vacant
-        await set(ref(db, benchPath), {
-            status: 'vacant',
-            name: '',
-            sid: ''
-        });
+            // Put them in the bench
+            await set(benchRef, {
+                status: 'occupied',
+                name: nextStudent.name,
+                sid: nextStudent.sid || 'N/A',
+                time: new Date().toLocaleTimeString()
+            });
+
+            // Update the waitlist
+            await set(waitlistRef, list);
+            console.log(`Auto-assigned ${nextStudent.name} to ${benchId}`);
+        } else {
+            // No one waiting? Just make it vacant
+            await set(benchRef, { status: 'vacant', name: '', sid: '' });
+        }
+    } catch (e) {
+        console.error("Staff Action Error:", e);
     }
-}
+};
+
+// 2. FUNCTION FOR STUDENTS: Join waitlist OR take free bench
+window.addToWaitlist = async function(name, sid) {
+    try {
+        const benchesSnap = await get(ref(db, 'benches'));
+        const benches = benchesSnap.val() || {};
+        let freeBenchId = null;
+
+        // Check if any bench is currently vacant
+        for (let id in benches) {
+            if (benches[id].status === 'vacant') {
+                freeBenchId = id;
+                break;
+            }
+        }
+
+        if (freeBenchId) {
+            // Skip waitlist, assign immediately
+            await set(ref(db, 'benches/' + freeBenchId), {
+                status: 'occupied',
+                name: name,
+                sid: sid,
+                time: new Date().toLocaleTimeString()
+            });
+            alert(`Success! Bench ${freeBenchId} was free, so you've been assigned immediately.`);
+        } else {
+            // Add to the end of the waitlist
+            const waitlistRef = ref(db, 'waitlist');
+            const wlSnap = await get(waitlistRef);
+            let list = wlSnap.val() || [];
+            list.push({ name: name, sid: sid });
+            await set(waitlistRef, list);
+            alert("All benches are full. You have been added to the waitlist.");
+        }
+    } catch (e) {
+        console.error("Waitlist Join Error:", e);
+    }
+};
 
 function handleStaffClick(path, b) {
     const act = prompt("1: Arrived, 2: Clear Bench, 3: Maintenance");
@@ -472,6 +511,7 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </body>
 
 </html>
+
 
 
 
