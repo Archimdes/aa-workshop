@@ -223,34 +223,35 @@ function showAuth(type) {
     document.getElementById('tab-signup').style.borderBottom = type === 'signup' ? '2px solid var(--arrived)' : 'none';
 }
 
-// Handle New User Registration
-function doSignUp() {
+/function doSignUp() {
     const f = document.getElementById("regFName").value.trim();
     const s = document.getElementById("regSName").value.trim();
-    const e = document.getElementById("regEmail").value.trim().toLowerCase().replace(/\./g, ','); // Firebase keys can't have dots
+    const emailRaw = document.getElementById("regEmail").value.trim().toLowerCase();
     const p = document.getElementById("regPass").value;
 
-    if(!f || !s || !e || !p) { alert("Please fill all fields"); return; }
+    if(!f || !s || !emailRaw || !p) { alert("Please fill all fields"); return; }
 
-    // Save to 'users' folder
-    db.ref('users/' + e).set({
+    // Convert dots to commas for Firebase (e.g. name.s@aa.com -> name,s@aa,com)
+    const emailKey = emailRaw.replace(/\./g, ',');
+
+    db.ref('users/' + emailKey).set({
         firstName: f,
         surname: s,
         fullName: f + " " + s,
-        password: p, // Note: In a real app, we'd encrypt this!
-        email: e.replace(/,/g, '.')
+        password: p,
+        email: emailRaw
     }).then(() => {
-        alert("Account created! You can now login.");
+        alert("Account created! Please log in now.");
         showAuth('login');
-    });
+    }).catch(err => alert("Error: " + err.message));
 }
 
-// Handle Login with Email/Password
 function doLogin() {
-    const e = document.getElementById("loginEmail").value.trim().toLowerCase().replace(/\./g, ',');
+    const emailRaw = document.getElementById("loginEmail").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value;
+    const emailKey = emailRaw.replace(/\./g, ',');
 
-    db.ref('users/' + e).once('value', (snap) => {
+    db.ref('users/' + emailKey).once('value', (snap) => {
         const userData = snap.val();
         if(userData && userData.password === p) {
             currentUser = { 
@@ -258,9 +259,9 @@ function doLogin() {
                 email: userData.email 
             };
             localStorage.setItem("aa_user", JSON.stringify(currentUser));
-            location.reload();
+            location.reload(); // This triggers the 'Welcome' header
         } else {
-            alert("Invalid email or password.");
+            alert("Invalid email or password. Did you Sign Up first?");
         }
     });
 }
@@ -524,6 +525,7 @@ function logout() { localStorage.removeItem("aa_user"); location.reload(); }
 </script>
 </body>
 </html>
+
 
 
 
