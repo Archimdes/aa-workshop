@@ -534,6 +534,10 @@ function checkURLForAutoCheckin() {
 }
 function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
 function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
+
+function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
+function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
+
 function openProfile() { 
     document.getElementById("profileModal").style.display = "flex"; 
     loadProfileData();
@@ -547,6 +551,7 @@ function logout() {
 }
 
 // Notification System Functions
+
 function sendWaitlistNotification(userName, bookingDetails) {
     db.ref('user_profiles').once('value', (snap) => {
         const profiles = snap.val() || {};
@@ -641,178 +646,6 @@ function saveProfile() {
     closeProfile();
 }
 
-function handleStudentClick(path, b, s, d) {
-    if(!currentUser) { openLogin(); return; }
-    if(b) {
-        if(b.type === "maint") return;
-        if(b.email === currentUser.email && confirm("Cancel?")) { 
-            db.ref(path).remove(() => {
-                checkWaitlistAndFill(path);
-            });
-        }
-    } else {
-        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
-            const sessionData = snap.val() || {};
-            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
-            if(already) { alert("One bench per session only."); return; }
-            db.ref(path).set({...currentUser, arrived: false});
-        });
-    }
-}
-
-function doLogin() {
-    const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
-    
-    // Validation
-    if(!f || !s || !p) {
-        alert("Please fill in all fields.");
-        return;
-    }
-    if(f.length < 2 || f.length > 30 || s.length < 2 || s.length > 30) {
-        alert("Names must be between 2 and 30 characters.");
-        return;
-    }
-    if(!/^[a-zA-Z\s]+$/.test(f) || !/^[a-zA-Z\s]+$/.test(s)) {
-        alert("Names can only contain letters and spaces.");
-        return;
-    }
-    if(p.toLowerCase() !== f.toLowerCase()) {
-        alert("Password must match your first name (case insensitive).");
-        return;
-    }
-    
-    currentUser = { name: f + " " + s, email: f.toLowerCase() + "." + s.toLowerCase() + "@aaschool.ac.uk" };
-    localStorage.setItem("aa_user", JSON.stringify(currentUser)); location.reload();
-}
-
-function toggleQR() {
-    const q = document.getElementById("qrDisplay");
-    if (q.style.display === "flex") q.style.display = "none";
-    else {
-        q.style.display = "flex";
-        const checkinURL = window.location.href.split('?')[0] + "?checkin=true";
-        document.getElementById("qrcode").innerHTML = "";
-        new QRCode(document.getElementById("qrcode"), { text: checkinURL, width: 140, height: 140 });
-        document.getElementById("qrDesc").innerText = isStaff ? "WALL CHECK-IN" : "MY ID";
-    }
-}
-
-function checkURLForAutoCheckin() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('checkin') && currentUser) {
-        const today = new Date().toISOString().split('T')[0];
-        const h = new Date().getHours();
-        let s = (h < 13) ? "Morning" : (h < 17) ? "Afternoon" : "Evening";
-        
-        db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
-            const data = snap.val() || {};
-            const benchKey = Object.keys(data).find(key => data[key].email === currentUser.email);
-            if(benchKey) {
-                db.ref(`bookings/${today}/${s}/${benchKey}`).update({arrived: true});
-                alert("Checked in!"); window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        });
-    }
-}
-
-function printRegister() {
-    const d = document.getElementById("dateSelect").value;
-    const s = document.getElementById("slotSelect").value;
-    db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
-        const data = snap.val() || {};
-        let tableHtml = `<h2>AA Workshop Register - ${d} (${s})</h2>`;
-        tableHtml += `<table><thead><tr><th>Bench</th><th>Name</th><th>Status</th></tr></thead><tbody>`;
-        for(let i=1; i<=25; i++) {
-            const b = data['bench'+i];
-            const status = b ? (b.arrived ? "PRESENT" : (b.type === "maint" ? "SERVICE" : "ABSENT")) : "EMPTY";
-            tableHtml += `<tr><td>Bench ${i}</td><td>${b ? b.name : "-"}</td><td>${status}</td></tr>`;
-        }
-        tableHtml += `</tbody></table>`;
-        document.getElementById("printArea").innerHTML = tableHtml;
-        window.print();
-    });
-}
-
-function clearEntireSlot() {
-    const d = document.getElementById("dateSelect").value;
-    const s = document.getElementById("slotSelect").value;
-    if(confirm(`Are you sure you want to WIPE all bookings for ${s}?`)) {
-        db.ref(`bookings/${d}/${s}`).remove();
-    }
-}
-
-function staffLogin() {
-    if(prompt("PIN:") === "workshop123") {
-        isStaff = true; document.body.classList.add("staffMode");
-        document.getElementById("staffSessionUI").style.display = "inline-block"; 
-        document.getElementById("staffMainTools").style.display = "block";
-        document.getElementById("staffNoticeTools").style.display = "block";
-        document.getElementById("staffWlInput").style.display = "block";
-        document.getElementById("qrSection").style.display = "block";
-        document.getElementById("loginBtn").style.display = "none"; 
-        document.getElementById("staffBtn").style.display = "none";
-        document.getElementById("logoutBtn").style.display = "inline-block"; 
-        refreshGrid(); renderWaitlist();
-    }
-}
-
-function saveNotice() {
-    const txt = document.getElementById("noticeInput").value;
-    db.ref('aa_notice').set(txt);
-}
-
-function toggleSiren() {
-    const currentState = document.body.classList.contains("siren-active");
-    db.ref('aa_siren').set(!currentState);
-}
-
-function addToWaitlist() {
-    const n = document.getElementById("wlName").value.trim();
-    if(!n) {
-        alert("Please enter a valid name.");
-        return;
-    }
-    if(n.length < 2 || n.length > 50) {
-        alert("Name must be between 2 and 50 characters.");
-        return;
-    }
-    if(!/^[a-zA-Z\s]+$/.test(n)) {
-        alert("Name can only contain letters and spaces.");
-        return;
-    }
-    
-    db.ref('aa_waitlist').once('value', (snap) => {
-        let list = snap.val() || [];
-        // Check for duplicates
-        if(list.some(item => item.name.toLowerCase() === n.toLowerCase())) {
-            alert("This person is already on the waitlist.");
-            return;
-        }
-        list.push({name: n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
-        db.ref('aa_waitlist').set(list);
-        document.getElementById("wlName").value = "";
-        alert(`${n} has been added to the waitlist. Position: ${list.length}`);
-    });
-}
-
-function renderWaitlist() {
-    db.ref('aa_waitlist').on('value', (snap) => {
-        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
-        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
-        list.forEach((item, idx) => {
-            const div = document.createElement("div");
-            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
-            div.innerHTML = `<span>#${idx + 1} <b>${item.name}</b> <small style="opacity:0.6">(${item.time})</small></span>`;
-            if(isStaff) {
-                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
-                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
-                div.appendChild(del);
-            }
-            cont.appendChild(div);
-        });
-    });
-}
-
 function checkWaitlistAndFill(path) {
     db.ref('aa_waitlist').once('value', (snap) => {
         const list = snap.val() || [];
@@ -834,37 +667,6 @@ function checkWaitlistAndFill(path) {
     });
 }
 
-function checkTimeouts() {
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date();
-    sessionNames.forEach(s => {
-        const [h, m] = sessionStarts[s].split(":");
-        const limit = new Date(); limit.setHours(parseInt(h), parseInt(m) + 30, 0);
-        if (now > limit) {
-            db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
-                const sessionData = snap.val() || {};
-                Object.keys(sessionData).forEach(benchKey => {
-                    const b = sessionData[benchKey];
-                    if(b && b.type !== "maint" && !b.arrived) {
-                        const path = `bookings/${today}/${s}/${benchKey}`;
-                        db.ref(path).remove();
-                        checkWaitlistAndFill(path);
-                    }
-                });
-            });
-        }
-    });
-}
-
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
