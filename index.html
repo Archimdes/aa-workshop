@@ -425,63 +425,111 @@
 }
 
     function handleStudentClick(path, b, s, d) {
-        if(!currentUser) { openLogin(); return; }
-        
-        if(b) {
-            if(b.type === "maint") return;
-            if(b.email === currentUser.email && confirm("Cancel?")) { 
-                db.ref(path).remove(() => {
-                    checkWaitlistAndFill(path); // Auto fill if someone cancels
+    // 1. Security Check: Must be logged in to interact
+    if (!currentUser) {
+        openLogin();
+        return;
+    }
+
+    // 2. SCENARIO: The slot is already occupied
+    if (b) {
+        // Ignore clicks if the bench is under maintenance
+        if (b.type === "maint") return;
+
+        // If it's the user's own booking, allow them to cancel
+        if (b.email === currentUser.email) {
+            if (confirm("Are you sure you want to cancel your booking for " + s + "?")) {
+                
+                // Remove the booking from Firebase
+                db.ref(path).remove().then(() => {
+                    // CRITICAL: This is the handshake that pulls the next person from the waitlist
+                    checkWaitlistAndFill(path);
+                    alert("Booking cancelled. If there was a waitlist, the slot has been filled.");
+                }).catch(err => {
+                    console.error("Cancellation failed:", err);
                 });
             }
         } else {
-            db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
-                const sessionData = snap.val() || {};
-                let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
-                
-                if(already) { 
-                    alert("One bench per session only."); 
-                    return; 
-                }
-
-                db.ref(path).set({...currentUser, arrived: false}).then(() => {
-                    const benchLabel = "Bench " + path.split('bench')[1];
-                    sendBookingEmail({ bench: benchLabel, date: d, session: s });
-                    alert("Booked successfully! A confirmation email is on its way.");
-                }).catch(err => {
-                    alert("Booking failed: " + err.message);
-                });
-            });
+            alert("This bench is already booked by " + b.name.split(' ')[0]);
         }
-    }
+    } 
+    // 3. SCENARIO: The slot is empty (Available)
+    else {
+        // Check if the user already has a booking in this specific session (No double-booking)
+        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+            const sessionData = snap.val() || {};
+            const hasBooking = Object.values(sessionData).some(booking => booking.email === currentUser.email);
 
-    // Waitlist Logic Integration
-    function checkWaitlistAndFill(path) {
-        db.ref('aa_waitlist').once('value', (snap) => {
-            const list = snap.val() || [];
-            if(list.length > 0) {
-                const nextInLine = list.shift(); // Get first person
-                db.ref('aa_waitlist').set(list); // Update list
-                
-                // Add them to the bench
-                db.ref(path).set({
-                    name: nextInLine.name,
-                    email: nextInLine.email || "staff-added@aaschool.ac.uk",
-                    uid: nextInLine.uid || null,
-                    arrived: false
-                });
-
-                // Trigger Notification
-                const pathParts = path.split('/');
-                sendWaitlistNotification(nextInLine, {
-                    bench: pathParts[3].replace('bench', 'Bench '),
-                    session: pathParts[2],
-                    date: pathParts[1]
-                });
+            if (hasBooking) {
+                alert("You already have a bench booked for this session!");
+                return;
             }
+
+            // Create the booking entry
+            const bookingData = {
+                name: currentUser.name,
+                email: currentUser.email,
+                uid: currentUser.uid,
+                arrived: false
+            };
+
+            // Save to Firebase
+            db.ref(path).set(bookingData).then(() => {
+                // Send confirmation email via EmailJS
+                const benchLabel = "Bench " + path.split('bench')[1];
+                sendBookingEmail({
+                    bench: benchLabel,
+                    date: d,
+                    session: s
+                });
+                alert("Successfully booked " + benchLabel + "!");
+            }).catch(err => {
+                alert("Booking failed: " + err.message);
+            });
         });
     }
+}
+    // Waitlist Logic Integration
+ function checkWaitlistAndFill(path) {
+    console.log("Checking waitlist for slot:", path);
+    
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
+        
+        if (list.length > 0) {
+            // 1. Pick the first person
+            const nextStudent = list.shift(); 
+            console.log("Moving student:", nextStudent.name);
 
+            // 2. Remove that person from the waitlist in the database
+            db.ref('aa_waitlist').set(list).then(() => {
+                
+                // 3. Place that person into the now-empty bench slot
+                db.ref(path).set({
+                    name: nextStudent.name,
+                    email: nextStudent.email,
+                    uid: nextStudent.uid,
+                    arrived: false
+                }).then(() => {
+                    // 4. Send the notification
+                    const pathParts = path.split('/');
+                    const benchLabel = "Bench " + pathParts[3].replace('bench', '');
+                    
+                    if (typeof sendWaitlistNotification === "function") {
+                        sendWaitlistNotification(nextStudent, {
+                            bench: benchLabel,
+                            session: pathParts[2],
+                            date: pathParts[1]
+                        });
+                    }
+                    alert(`Slot filled automatically by ${nextStudent.name}!`);
+                });
+            });
+        } else {
+            console.log("Waitlist is empty. Slot remains available.");
+        }
+    });
+}
     function sendWaitlistNotification(userObj, details) {
         const msg = `🎉 Workshop Update: You have been assigned ${details.bench} for ${details.session} on ${details.date}.`;
         
@@ -661,26 +709,31 @@ document.addEventListener('click', (e) => {
     }
 });
     // --- UTILITY & STAFF FUNCTIONS ---
-    function checkTimeouts() {
-        const today = new Date().toISOString().split('T')[0];
-        const now = new Date();
-        sessionNames.forEach(s => {
-            const [h, m] = sessionStarts[s].split(":");
-            const limit = new Date(); limit.setHours(parseInt(h), parseInt(m) + 30, 0);
-            if (now > limit) {
-                db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
-                    const sessionData = snap.val() || {};
-                    Object.keys(sessionData).forEach(benchKey => {
-                        const b = sessionData[benchKey];
-                        if(b && b.type !== "maint" && !b.arrived) {
-                            const path = `bookings/${today}/${s}/${benchKey}`;
-                            db.ref(path).remove(() => checkWaitlistAndFill(path));
-                        }
-                    });
+  function checkTimeouts() {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    sessionNames.forEach(s => {
+        const [h, m] = sessionStarts[s].split(":");
+        const limit = new Date(); limit.setHours(parseInt(h), parseInt(m) + 30, 0);
+        
+        if (now > limit) {
+            db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
+                const sessionData = snap.val() || {};
+                Object.keys(sessionData).forEach(benchKey => {
+                    const b = sessionData[benchKey];
+                    // If they haven't arrived 30 mins after start...
+                    if(b && b.type !== "maint" && !b.arrived) {
+                        const path = `bookings/${today}/${s}/${benchKey}`;
+                        // Delete them and trigger waitlist fill
+                        db.ref(path).remove().then(() => {
+                            checkWaitlistAndFill(path);
+                        });
+                    }
                 });
-            }
-        });
-    }
+            });
+        }
+    });
+}
 
     function staffLogin() {
         if(prompt("PIN:") === "workshop123") {
