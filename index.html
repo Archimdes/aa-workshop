@@ -8,14 +8,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
-            --bg-body: #FFD8A8; --bg-staff: #FFC0CB; --glass: rgba(255, 255, 255, 0.4);
-            --text-main: #2d3436; --available: #6fdc6f; --booked: #e36b6b; --arrived: #2196F3;
-            --urgent: #ff4757; --maint: #636e72; --input-bg: #ffffff;
+            --bg-body: #ffffff; --bg-staff: #f5f5f; --glass: rgba(0, 0, 0, 0.1);
+            --text-main: #000000; --available: #00a650; --booked: #dc3545; --arrived: #007bff;
+            --urgent: #dc3545; --maint: #6c757d; --input-bg: #ffffff;
+            --accent: #000000; --border: #dee2e6;
         }
         .dark-mode {
-            --bg-body: #1a1a1b; --bg-staff: #2d1b20; --glass: rgba(45, 45, 45, 0.8);
-            --text-main: #f5f6fa; --available: #00b894; --booked: #d63031; --arrived: #0984e3;
-            --input-bg: #2d3436;
+            --bg-body: #1a1a1a; --bg-staff: #2d1b20; --glass: rgba(45, 45, 45, 0.9);
+            --text-main: #ffffff; --available: #00a650; --booked: #dc3545; --arrived: #007bff;
+            --input-bg: #2d3436; --accent: #ffffff; --border: #495057;
         }
 
         body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: var(--bg-body); color: var(--text-main); transition: 0.3s; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
@@ -42,20 +43,21 @@
             .slot-seg { font-size: 9px; height: 32px; }
         }
         
-        .side-card { margin-bottom: 15px; padding: 20px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .glass-panel { margin: 10px 0; padding: 20px; border-radius: 16px; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; }
+        .side-card { margin-bottom: 20px; padding: 24px; border-radius: 8px; background: var(--glass); border: 1px solid var(--border); backdrop-filter: blur(10px); }
+        .glass-panel { margin: 15px 0; padding: 24px; border-radius: 8px; background: var(--glass); border: 1px solid var(--border); width: 100%; box-sizing: border-box; }
         
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
         .bench-container { background: var(--glass); border-radius: 12px; padding: 10px; }
-        .slot-seg { height: 36px; border-radius: 6px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 4px; border: none; width: 100%; color: #fff; }
+        .slot-seg { height: 36px; border-radius: 6px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 4px; border: 1px solid var(--border); width: 100%; color: #fff; transition: all 0.2s; }
         
-        .available { background: var(--available); color: #000; }
-        .booked { background: var(--booked); }
+        .available { background: var(--available); color: #000; border: 1px solid var(--border); }
+        .booked { background: var(--booked); border: 1px solid var(--border); }
         .arrived { background: var(--arrived); border: 2px solid gold; }
-        .maint { background: var(--maint); }
+        .maint { background: var(--maint); border: 1px solid var(--border); }
 
         input, select, textarea { background: var(--input-bg); color: var(--text-main); border: 1px solid rgba(0,0,0,0.1); padding: 8px; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 5px; }
-        .button { padding: 10px 18px; margin: 4px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; background: var(--text-main); color: var(--bg-body); }
+        .button { padding: 12px 24px; margin: 4px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-weight: 600; background: var(--accent); color: var(--bg-body); transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+        .button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
         #qrDisplay { background: white; padding: 15px; border-radius: 8px; margin-top: 10px; display: none; flex-direction: column; align-items: center; color: #000; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
@@ -818,7 +820,16 @@ function checkWaitlistAndFill(path) {
             const next = list.shift();
             db.ref('aa_waitlist').set(list);
             db.ref(path).set({name: next.name, email: next.email, arrived: false});
-            sendWaitlistNotification(next.name, {bench: path.split("/")[2], session: path.split("/")[1], date: path.split("/")[0], deadline: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+            const pathParts = path.split('/');
+            const bench = pathParts[2];
+            const session = pathParts[1];
+            const date = pathParts[0];
+            sendWaitlistNotification(next.name, {
+                bench: bench.replace('bench', ''),
+                session: session,
+                date: date,
+                deadline: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            });
         }
     });
 }
@@ -848,7 +859,6 @@ function checkTimeouts() {
 </script>
 </body>
 </html>
-
 
 
 
