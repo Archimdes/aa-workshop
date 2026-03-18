@@ -6,7 +6,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <style>
         :root {
             --bg-body: #FFD8A8; --bg-staff: #FFC0CB; --glass: rgba(255, 255, 255, 0.4);
@@ -31,9 +30,17 @@
             to { box-shadow: 0 0 25px var(--urgent); background: rgba(255, 71, 87, 0.2); } 
         }
 
-        #mainLayout { display: flex; width: 100%; max-width: 1400px; gap: 20px; }
-        #mainContent { flex: 3; text-align: center; }
-        #sidebar { flex: 1; min-width: 280px; position: sticky; top: 20px; }
+        #mainLayout { display: flex; width: 100%; max-width: 1400px; gap: 20px; flex-wrap: wrap; }
+        #mainContent { flex: 3; min-width: 300px; text-align: center; }
+        #sidebar { flex: 1; min-width: 280px; position: relative; }
+        
+        @media (max-width: 768px) {
+            #mainLayout { flex-direction: column; }
+            #sidebar { order: 2; }
+            #mainContent { order: 1; }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+            .slot-seg { font-size: 9px; height: 32px; }
+        }
         
         .side-card { margin-bottom: 15px; padding: 20px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
         .glass-panel { margin: 10px 0; padding: 20px; border-radius: 16px; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; }
@@ -101,6 +108,7 @@
             <button class="button" onclick="document.body.classList.toggle('dark-mode')">🌓 Night Mode</button>
             <div>
                 <button class="button" id="loginBtn" onclick="openLogin()">Student Login</button>
+                <button class="button" id="profileBtn" style="display:none;" onclick="openProfile()">👤 Profile</button>
                 <button class="button" id="staffBtn" onclick="staffLogin()">Staff Portal</button>
                 <button class="button" id="logoutBtn" style="display:none; background:#d63031; color:white;" onclick="logout()">Logout</button>
             </div>
@@ -133,39 +141,51 @@
 <div id="printArea"></div>
 
 <div id="loginModal" class="modal">
-    <div class="glass-panel" style="background:var(--input-bg); width:320px;">
-        <div id="authTabs" style="display:flex; margin-bottom:15px; border-bottom:1px solid #ddd;">
-            <button onclick="showAuth('login')" id="tab-login" style="flex:1; border:none; background:none; padding:10px; cursor:pointer; font-weight:bold; border-bottom:2px solid var(--arrived);">Login</button>
-            <button onclick="showAuth('signup')" id="tab-signup" style="flex:1; border:none; background:none; padding:10px; cursor:pointer; opacity:0.5;">Sign Up</button>
-        </div>
-
-       <div id="loginFields">
-    <input type="email" id="loginEmail" placeholder="Email Address">
-    <input type="password" id="loginPass" placeholder="Password">
-    <button class="button" style="width:100%" onclick="doLogin()">Login</button>
-    
-    <p style="text-align:center; font-size:12px; margin-top:10px;">
-        <a href="#" onclick="forgotPassword()" style="color:var(--arrived); text-decoration:none;">Forgot Password?</a>
-    </p>
-</div>
-
-        <div id="signupFields" style="display:none;">
-            <input type="text" id="regFName" placeholder="First Name">
-            <input type="text" id="regSName" placeholder="Surname">
-            <input type="email" id="regEmail" placeholder="Email Address">
-            <input type="password" id="regPass" placeholder="Create Password">
-            <button class="button" style="width:100%; background:#2ecc71; color:white;" onclick="doSignUp()">Create Account</button>
-        </div>
-        
+    <div class="glass-panel" style="background:var(--input-bg); width:300px;">
+        <h3 style="margin-top:0">Student Login</h3>
+        <input type="text" id="fName" placeholder="First Name">
+        <input type="text" id="sName" placeholder="Surname">
+        <input type="password" id="loginPass" placeholder="Password">
+        <button class="button" style="width:100%" onclick="doLogin()">Enter</button>
         <button class="button" style="width:100%; background:#888; color:white; margin-top:5px;" onclick="closeLogin()">Cancel</button>
     </div>
 </div>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-<script type="text/javascript">
-   (function(){
-      emailjs.init("AT2LZmBWCE6mMkv_A"); 
-   })();
-</script>
+
+<div id="profileModal" class="modal">
+    <div class="glass-panel" style="background:var(--input-bg); width:350px;">
+        <h3 style="margin-top:0">👤 Notification Preferences</h3>
+        <p style="font-size:12px; opacity:0.7; margin-bottom:15px;">Choose how you want to be notified when you get a spot from the waitlist:</p>
+        
+        <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:bold;">Email Notifications</label>
+            <input type="email" id="userEmail" placeholder="your.email@aaschool.ac.uk" style="width:100%; margin-bottom:5px;">
+            <label style="display:flex; align-items:center; margin-top:5px;">
+                <input type="checkbox" id="emailNotif" checked style="margin-right:8px;">
+                <span>Receive email notifications</span>
+            </label>
+        </div>
+        
+        <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:bold;">Text Notifications</label>
+            <input type="tel" id="userPhone" placeholder="+44 7700 900000" style="width:100%; margin-bottom:5px;">
+            <label style="display:flex; align-items:center; margin-top:5px;">
+                <input type="checkbox" id="smsNotif" style="margin-right:8px;">
+                <span>Receive text notifications</span>
+            </label>
+        </div>
+        
+        <div style="margin-bottom:20px;">
+            <label style="display:flex; align-items:center;">
+                <input type="checkbox" id="popupNotif" checked style="margin-right:8px;">
+                <span>Show browser pop-up notifications</span>
+            </label>
+        </div>
+        
+        <button class="button" style="width:100%; background:#2ecc71; color:white;" onclick="saveProfile()">Save Preferences</button>
+        <button class="button" style="width:100%; background:#888; color:white; margin-top:5px;" onclick="closeProfile()">Close</button>
+    </div>
+</div>
+
 <script>
 // --- FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -175,7 +195,7 @@ const firebaseConfig = {
   storageBucket: "aa-workshop-booking.firebasestorage.app",
   messagingSenderId: "194937255422",
   appId: "1:194937255422:web:23a18c6ba4e023645e7caf",
-  databaseURL: "https://aa-workshop-booking-default-rtdb.europe-west1.firebasedatabase.app/"
+  databaseURL: "https://aa-workshop-booking-default-rtdb.firebaseio.com"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -189,7 +209,7 @@ window.onload = () => {
     loadAppData();
     checkURLForAutoCheckin();
     setInterval(checkTimeouts, 60000); 
-    refreshGrid();
+    refreshGrid(); // Data is now real-time, no need for refresh interval
 };
 
 function setupDates() {
@@ -204,9 +224,11 @@ function setupDates() {
 }
 
 function loadAppData() {
+    // Sync Notice Board from Cloud
     db.ref('aa_notice').on('value', (s) => {
         if(s.val()) document.getElementById("bulletinText").innerText = s.val();
     });
+    // Sync Siren from Cloud
     db.ref('aa_siren').on('value', (s) => {
         if(s.val()) document.body.classList.add("siren-active");
         else document.body.classList.remove("siren-active");
@@ -218,93 +240,19 @@ function loadAppData() {
         document.getElementById("loginBtn").style.display = "none";
         document.getElementById("staffBtn").style.display = "none";
         document.getElementById("logoutBtn").style.display = "inline-block";
+        document.getElementById("profileBtn").style.display = "inline-block";
         document.getElementById("dynamicHeader").innerText = "Welcome, " + currentUser.name.split(' ')[0];
         document.getElementById("qrSection").style.display = "block";
     }
     renderWaitlist();
 }
 
-// --- AUTHENTICATION FUNCTIONS ---
-function showAuth(type) {
-    document.getElementById('loginFields').style.display = type === 'login' ? 'block' : 'none';
-    document.getElementById('signupFields').style.display = type === 'signup' ? 'block' : 'none';
-    document.getElementById('tab-login').style.opacity = type === 'login' ? '1' : '0.5';
-    document.getElementById('tab-signup').style.opacity = type === 'signup' ? '1' : '0.5';
-    document.getElementById('tab-login').style.borderBottom = type === 'login' ? '2px solid var(--arrived)' : 'none';
-    document.getElementById('tab-signup').style.borderBottom = type === 'signup' ? '2px solid var(--arrived)' : 'none';
-}
-
-// --- NEW AUTHENTICATION LOGIC ---
-
-function doSignUp() {
-    const f = document.getElementById("regFName").value.trim();
-    const s = document.getElementById("regSName").value.trim();
-    const email = document.getElementById("regEmail").value.trim();
-    const password = document.getElementById("regPass").value;
-
-    if(!f || !s || !email || !password) { alert("Please fill all fields"); return; }
-
-    // 1. Create User in Firebase Auth
-    firebase.auth().createUserWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            const user = userCredential.user;
-            
-            // 2. Save the Name/Email to the Database (using UID, not email as key)
-            db.ref('users/' + user.uid).set({
-                fullName: f + " " + s,
-                email: email,
-                createdAt: new Date().toISOString()
-            });
-
-            // 3. Send Verification Email
-            user.sendEmailVerification().then(() => {
-                alert("Account created! A verification email has been sent to " + email + ". Please verify before logging in.");
-                showAuth('login');
-            });
-        })
-        .catch((error) => {
-            alert("Sign Up Error: " + error.message);
-        });
-}
-
-function doLogin() {
-    const email = document.getElementById("loginEmail").value.trim();
-    const password = document.getElementById("loginPass").value;
-
-    // 1. Authenticate with Firebase
-    firebase.auth().signInWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            const user = userCredential.user;
-
-            // 2. Check if Email is Verified
-            if (!user.emailVerified) {
-                alert("Please verify your email address first! Check your inbox.");
-                firebase.auth().signOut(); // Log them back out if not verified
-                return;
-            }
-
-            // 3. Fetch user profile and save to localStorage
-            db.ref('users/' + user.uid).once('value', (snap) => {
-                const userData = snap.val();
-                currentUser = { 
-                    name: userData ? userData.fullName : email, 
-                    email: email,
-                    uid: user.uid 
-                };
-                localStorage.setItem("aa_user", JSON.stringify(currentUser));
-                location.reload(); 
-            });
-        })
-        .catch((error) => {
-            alert("Login Error: " + error.message);
-        });
-}
-// --- GRID & WAITLIST FUNCTIONS ---
 function refreshGrid() {
     const mainG = document.getElementById("mainGrid"), yardG = document.getElementById("yardGrid");
     const d = document.getElementById("dateSelect").value;
     const activeS = document.getElementById("slotSelect").value;
     
+    // Connect to Real-time Cloud Data
     db.ref(`bookings/${d}`).on('value', (snapshot) => {
         const data = snapshot.val() || {};
         mainG.innerHTML = ""; yardG.innerHTML = "";
@@ -321,6 +269,7 @@ function refreshGrid() {
                 btn.className = "slot-seg " + (b ? (b.type === "maint" ? "maint" : (b.arrived ? "arrived" : "booked")) : "available");
                 btn.innerText = b ? (b.type === "maint" ? "🔧" : b.name.split(' ')[0]) : s;
                 
+                // Key construction for Firebase
                 const path = `bookings/${d}/${s}/bench${i}`;
                 btn.onclick = () => isStaff ? handleStaffClick(path, b) : handleStudentClick(path, b, s, d);
                 container.appendChild(btn);
@@ -330,115 +279,64 @@ function refreshGrid() {
     });
 }
 
-function handleStaffClick(path, b) {
-    const act = prompt("1: Arrived, 2: Clear/Auto-Assign, 3: Maintenance");
-    
-    if (act === "1" && b) { 
-        db.ref(path).update({ arrived: true }); 
-    } 
-    else if (act === "2") {
-        db.ref('aa_waitlist').once('value', (snap) => {
-            const list = snap.val() || [];
-            if (list.length > 0) {
-                const nextInLine = list.shift();
-                db.ref(path).set({
-                    name: nextInLine.name,
-                    email: "waitlist-" + Date.now() + "@aaschool.ac.uk",
-                    arrived: false
-                });
-                db.ref('aa_waitlist').set(list);
-            } else {
-                db.ref(path).remove();
-            }
-        });
-    } 
-    else if (act === "3") {
-        db.ref(path).set({ type: "maint", name: "SERVICE" });
-    }
-}
-
-function renderWaitlist() {
-    db.ref('aa_waitlist').on('value', (snap) => {
-        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
-        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
-        list.forEach((item, idx) => {
-            const div = document.createElement("div");
-            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
-            div.innerHTML = `<span><b>${item.name}</b></span>`;
-            if(isStaff) {
-                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
-                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
-                div.appendChild(del);
-            }
-            cont.appendChild(div);
-        });
-    });
-}
-
-function addToWaitlist() {
-    const nameInput = document.getElementById("wlName");
-    const name = nameInput.value.trim();
-    if(!name) return;
+function checkWaitlistAndFill(path) {
     db.ref('aa_waitlist').once('value', (snap) => {
         let list = snap.val() || [];
-        list.push({ name: name, time: new Date().toLocaleTimeString() });
-        db.ref('aa_waitlist').set(list);
-        nameInput.value = "";
+        if (list.length > 0) {
+            let nextInLine = list.shift();
+            let bookingTime = new Date().toISOString();
+            let newBooking = { 
+                name: nextInLine.name, 
+                email: "waitlist-" + Date.now(), 
+                arrived: false,
+                bookedFromWaitlist: true,
+                bookingTime: bookingTime,
+                arrivalDeadline: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes from now
+            };
+            db.ref(path).set(newBooking);
+            db.ref('aa_waitlist').set(list);
+            
+            // Extract session info from path for notification
+            const pathParts = path.split('/');
+            const date = pathParts[1];
+            const session = pathParts[2];
+            const bench = pathParts[3];
+            
+            // Send notification to the user
+            sendWaitlistNotification(nextInLine.name, {
+                bench: bench.replace('bench', ''),
+                session: session,
+                date: date,
+                deadline: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            });
+            
+            // Show notification to staff if logged in
+            if(isStaff) {
+                alert(`🎉 ${nextInLine.name} has been automatically booked from waitlist!\nBench: ${bench.replace('bench', '')}\nSession: ${session}\nDate: ${date}\n⏰ Has 10 minutes to arrive!`);
+            }
+        }
     });
 }
 
-function handleStudentClick(path, b, s, d) {
-    if(!currentUser) { openLogin(); return; }
-    
-    if(b) {
-        if(b.type === "maint") return;
-        if(b.email === currentUser.email && confirm("Cancel?")) { 
+function handleStaffClick(path, b) {
+    const act = prompt("1: Arrived, 2: Clear Bench, 3: Maintenance");
+    if(act === "1" && b) { 
+        db.ref(path).update({arrived: true}); 
+    }
+    else if(act === "2") {
+        db.ref(path).remove();
+        checkWaitlistAndFill(path);
+    }
+    else if(act === "3") {
+        if(b && b.type === "maint") {
             db.ref(path).remove();
+            checkWaitlistAndFill(path);
+        } else {
+            db.ref(path).set({type: "maint", name: "SERVICE"});
         }
-    } else {
-        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
-            const sessionData = snap.val() || {};
-            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
-            
-            if(already) { 
-                alert("One bench per session only."); 
-                return; 
-            }
-
-            // 1. Save to Firebase
-            db.ref(path).set({...currentUser, arrived: false}).then(() => {
-                
-                // 2. Trigger the Confirmation Email
-                // This extracts the bench number from the path (e.g., "bench5" -> "Bench 5")
-                const benchLabel = "Bench " + path.split('bench')[1];
-                
-                sendBookingEmail({
-                    bench: benchLabel,
-                    date: d,
-                    session: s
-                });
-
-                alert("Booked successfully! A confirmation email is on its way.");
-            }).catch(err => {
-                alert("Booking failed: " + err.message);
-            });
-        });
     }
 }
-    function sendBookingEmail(bookingDetails) {
-    const templateParams = {
-        user_name: currentUser.name,
-        user_email: currentUser.email,
-        bench_no: bookingDetails.bench,
-        date: bookingDetails.date,
-        session: bookingDetails.session
-    };
 
-    emailjs.send('service_ms1erxl', 'template_xn7kjya', templateParams)
-        .then(() => console.log('Confirmation email sent!'))
-        .catch((err) => console.error('Email error:', err));
-}
-// --- UTILITY FUNCTIONS ---
 function checkTimeouts() {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
@@ -451,12 +349,40 @@ function checkTimeouts() {
                 Object.keys(sessionData).forEach(benchKey => {
                     const b = sessionData[benchKey];
                     if(b && b.type !== "maint" && !b.arrived) {
-                        db.ref(`bookings/${today}/${s}/${benchKey}`).remove();
+                        const path = `bookings/${today}/${s}/${benchKey}`;
+                        db.ref(path).remove();
+                        checkWaitlistAndFill(path);
                     }
                 });
             });
         }
     });
+}
+
+function printRegister() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+        const data = snap.val() || {};
+        let tableHtml = `<h2>AA Workshop Register - ${d} (${s})</h2>`;
+        tableHtml += `<table><thead><tr><th>Bench</th><th>Name</th><th>Status</th></tr></thead><tbody>`;
+        for(let i=1; i<=25; i++) {
+            const b = data['bench'+i];
+            const status = b ? (b.arrived ? "PRESENT" : (b.type === "maint" ? "SERVICE" : "ABSENT")) : "EMPTY";
+            tableHtml += `<tr><td>Bench ${i}</td><td>${b ? b.name : "-"}</td><td>${status}</td></tr>`;
+        }
+        tableHtml += `</tbody></table>`;
+        document.getElementById("printArea").innerHTML = tableHtml;
+        window.print();
+    });
+}
+
+function clearEntireSlot() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    if(confirm(`Are you sure you want to WIPE all bookings for ${s}?`)) {
+        db.ref(`bookings/${d}/${s}`).remove();
+    }
 }
 
 function staffLogin() {
@@ -473,46 +399,455 @@ function staffLogin() {
         refreshGrid(); renderWaitlist();
     }
 }
-function forgotPassword() {
-    const email = document.getElementById("loginEmail").value.trim();
-    
-    if (!email) {
-        alert("Please enter your email address in the login box first, then click 'Forgot Password'.");
+
+function saveNotice() {
+    const txt = document.getElementById("noticeInput").value;
+    db.ref('aa_notice').set(txt);
+}
+
+function toggleSiren() {
+    const currentState = document.body.classList.contains("siren-active");
+    db.ref('aa_siren').set(!currentState);
+}
+
+function addToWaitlist() {
+    const n = document.getElementById("wlName").value.trim();
+    if(!n) {
+        alert("Please enter a valid name.");
         return;
     }
+    if(n.length < 2 || n.length > 50) {
+        alert("Name must be between 2 and 50 characters.");
+        return;
+    }
+    if(!/^[a-zA-Z\s]+$/.test(n)) {
+        alert("Name can only contain letters and spaces.");
+        return;
+    }
+    
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
+        // Check for duplicates
+        if(list.some(item => item.name.toLowerCase() === n.toLowerCase())) {
+            alert("This person is already on the waitlist.");
+            return;
+        }
+        list.push({name: n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+        db.ref('aa_waitlist').set(list);
+        document.getElementById("wlName").value = "";
+        alert(`${n} has been added to the waitlist. Position: ${list.length}`);
+    });
+}
 
-    firebase.auth().sendPasswordResetEmail(email)
-        .then(() => {
-            alert("Password reset email sent! Please check your inbox (and spam folder).");
-        })
-        .catch((error) => {
-            alert("Error: " + error.message);
+function renderWaitlist() {
+    db.ref('aa_waitlist').on('value', (snap) => {
+        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
+        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
+        list.forEach((item, idx) => {
+            const div = document.createElement("div");
+            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
+            div.innerHTML = `<span>#${idx + 1} <b>${item.name}</b> <small style="opacity:0.6">(${item.time})</small></span>`;
+            if(isStaff) {
+                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
+                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
+                div.appendChild(del);
+            }
+            cont.appendChild(div);
         });
+    });
 }
-function saveNotice() { db.ref('aa_notice').set(document.getElementById("noticeInput").value); }
-function toggleSiren() { 
-    db.ref('aa_siren').once('value', snap => db.ref('aa_siren').set(!snap.val())); 
+
+function handleStudentClick(path, b, s, d) {
+    if(!currentUser) { openLogin(); return; }
+    if(b) {
+        if(b.type === "maint") return;
+        if(b.email === currentUser.email && confirm("Cancel?")) { 
+            db.ref(path).remove(() => {
+                checkWaitlistAndFill(path);
+            });
+        }
+    } else {
+        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+            const sessionData = snap.val() || {};
+            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
+            if(already) { alert("One bench per session only."); return; }
+            db.ref(path).set({...currentUser, arrived: false});
+        });
+    }
 }
+
+function doLogin() {
+    const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
+    
+    // Validation
+    if(!f || !s || !p) {
+        alert("Please fill in all fields.");
+        return;
+    }
+    if(f.length < 2 || f.length > 30 || s.length < 2 || s.length > 30) {
+        alert("Names must be between 2 and 30 characters.");
+        return;
+    }
+    if(!/^[a-zA-Z\s]+$/.test(f) || !/^[a-zA-Z\s]+$/.test(s)) {
+        alert("Names can only contain letters and spaces.");
+        return;
+    }
+    if(p.toLowerCase() !== f.toLowerCase()) {
+        alert("Password must match your first name (case insensitive).");
+        return;
+    }
+    
+    currentUser = { name: f + " " + s, email: f.toLowerCase() + "." + s.toLowerCase() + "@aaschool.ac.uk" };
+    localStorage.setItem("aa_user", JSON.stringify(currentUser)); location.reload();
+}
+
 function toggleQR() {
     const q = document.getElementById("qrDisplay");
-    q.style.display = (q.style.display === "flex") ? "none" : "flex";
-    if(q.style.display === "flex") {
+    if (q.style.display === "flex") q.style.display = "none";
+    else {
+        q.style.display = "flex";
+        const checkinURL = window.location.href.split('?')[0] + "?checkin=true";
         document.getElementById("qrcode").innerHTML = "";
-        new QRCode(document.getElementById("qrcode"), { text: window.location.href.split('?')[0] + "?checkin=true", width: 140, height: 140 });
+        new QRCode(document.getElementById("qrcode"), { text: checkinURL, width: 140, height: 140 });
         document.getElementById("qrDesc").innerText = isStaff ? "WALL CHECK-IN" : "MY ID";
+    }
+}
+
+function checkURLForAutoCheckin() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('checkin') && currentUser) {
+        const today = new Date().toISOString().split('T')[0];
+        const h = new Date().getHours();
+        let s = (h < 13) ? "Morning" : (h < 17) ? "Afternoon" : "Evening";
+        
+        db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
+            const data = snap.val() || {};
+            const benchKey = Object.keys(data).find(key => data[key].email === currentUser.email);
+            if(benchKey) {
+                db.ref(`bookings/${today}/${s}/${benchKey}`).update({arrived: true});
+                alert("Checked in!"); window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
     }
 }
 function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
 function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
-function logout() { localStorage.removeItem("aa_user"); location.reload(); }
-function printRegister() { /* ... existing print logic ... */ }
-function clearEntireSlot() { /* ... existing wipe logic ... */ }
-function checkURLForAutoCheckin() { /* ... existing QR checkin logic ... */ }
+function openProfile() { 
+    document.getElementById("profileModal").style.display = "flex"; 
+    loadProfileData();
+}
+function closeProfile() { document.getElementById("profileModal").style.display = "none"; }
+function logout() { 
+    localStorage.removeItem("aa_user"); 
+    localStorage.removeItem("aa_profile");
+    currentUser = null; 
+    location.reload(); 
+}
+
+// Notification System Functions
+function sendWaitlistNotification(userName, bookingDetails) {
+    db.ref('user_profiles').once('value', (snap) => {
+        const profiles = snap.val() || {};
+        const userProfile = profiles[userName] || {};
+        
+        const message = `🎉 Workshop Booking Confirmed!\n\nBench: ${bookingDetails.bench}\nSession: ${bookingDetails.session}\nDate: ${bookingDetails.date}\n\n⏰ You have 10 minutes to arrive!\nDeadline: ${bookingDetails.deadline}`;
+        
+        // Send email notification
+        if(userProfile.email && userProfile.emailNotif) {
+            sendEmail(userProfile.email, message);
+        }
+        
+        // Send SMS notification
+        if(userProfile.phone && userProfile.smsNotif) {
+            sendSMS(userProfile.phone, message);
+        }
+        
+        // Send browser popup notification
+        if(userProfile.popupNotif) {
+            sendBrowserNotification(userName, message);
+        }
+    });
+}
+
+function sendEmail(email, message) {
+    // For demo purposes - in production, integrate with email service
+    console.log("Email sent to:", email, "Message:", message);
+}
+
+function sendSMS(phone, message) {
+    // For demo purposes - in production, integrate with SMS service like Twilio
+    console.log("SMS sent to:", phone, "Message:", message);
+}
+
+function sendBrowserNotification(userName, message) {
+    if("Notification" in window && Notification.permission === "granted") {
+        new Notification("AA Workshop - " + userName, {
+            body: message,
+            icon: "https://via.placeholder.com/50"
+        });
+    } else if("Notification" in window && Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if(permission === "granted") {
+                new Notification("AA Workshop - " + userName, {
+                    body: message,
+                    icon: "https://via.placeholder.com/50"
+                });
+            }
+        });
+    }
+}
+
+function loadProfileData() {
+    if(!currentUser) return;
+    
+    db.ref('user_profiles').child(currentUser.name).once('value', (snap) => {
+        const profile = snap.val() || {};
+        document.getElementById("userEmail").value = profile.email || currentUser.email;
+        document.getElementById("userPhone").value = profile.phone || "";
+        document.getElementById("emailNotif").checked = profile.emailNotif !== false;
+        document.getElementById("smsNotif").checked = profile.smsNotif === true;
+        document.getElementById("popupNotif").checked = profile.popupNotif !== false;
+    });
+}
+
+function saveProfile() {
+    if(!currentUser) return;
+    
+    const profile = {
+        email: document.getElementById("userEmail").value,
+        phone: document.getElementById("userPhone").value,
+        emailNotif: document.getElementById("emailNotif").checked,
+        smsNotif: document.getElementById("smsNotif").checked,
+        popupNotif: document.getElementById("popupNotif").checked
+    };
+    
+    // Validate email if email notifications are enabled
+    if(profile.emailNotif && !profile.email) {
+        alert("Please provide an email address to receive email notifications.");
+        return;
+    }
+    
+    // Validate phone if SMS notifications are enabled
+    if(profile.smsNotif && !profile.phone) {
+        alert("Please provide a phone number to receive SMS notifications.");
+        return;
+    }
+    
+    db.ref('user_profiles').child(currentUser.name).set(profile);
+    localStorage.setItem("aa_profile", JSON.stringify(profile));
+    alert("Notification preferences saved!");
+    closeProfile();
+}
+
+function handleStudentClick(path, b, s, d) {
+    if(!currentUser) { openLogin(); return; }
+    if(b) {
+        if(b.type === "maint") return;
+        if(b.email === currentUser.email && confirm("Cancel?")) { 
+            db.ref(path).remove(() => {
+                checkWaitlistAndFill(path);
+            });
+        }
+    } else {
+        db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+            const sessionData = snap.val() || {};
+            let already = Object.values(sessionData).some(booking => booking.email === currentUser.email);
+            if(already) { alert("One bench per session only."); return; }
+            db.ref(path).set({...currentUser, arrived: false});
+        });
+    }
+}
+
+function doLogin() {
+    const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
+    
+    // Validation
+    if(!f || !s || !p) {
+        alert("Please fill in all fields.");
+        return;
+    }
+    if(f.length < 2 || f.length > 30 || s.length < 2 || s.length > 30) {
+        alert("Names must be between 2 and 30 characters.");
+        return;
+    }
+    if(!/^[a-zA-Z\s]+$/.test(f) || !/^[a-zA-Z\s]+$/.test(s)) {
+        alert("Names can only contain letters and spaces.");
+        return;
+    }
+    if(p.toLowerCase() !== f.toLowerCase()) {
+        alert("Password must match your first name (case insensitive).");
+        return;
+    }
+    
+    currentUser = { name: f + " " + s, email: f.toLowerCase() + "." + s.toLowerCase() + "@aaschool.ac.uk" };
+    localStorage.setItem("aa_user", JSON.stringify(currentUser)); location.reload();
+}
+
+function toggleQR() {
+    const q = document.getElementById("qrDisplay");
+    if (q.style.display === "flex") q.style.display = "none";
+    else {
+        q.style.display = "flex";
+        const checkinURL = window.location.href.split('?')[0] + "?checkin=true";
+        document.getElementById("qrcode").innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), { text: checkinURL, width: 140, height: 140 });
+        document.getElementById("qrDesc").innerText = isStaff ? "WALL CHECK-IN" : "MY ID";
+    }
+}
+
+function checkURLForAutoCheckin() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('checkin') && currentUser) {
+        const today = new Date().toISOString().split('T')[0];
+        const h = new Date().getHours();
+        let s = (h < 13) ? "Morning" : (h < 17) ? "Afternoon" : "Evening";
+        
+        db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
+            const data = snap.val() || {};
+            const benchKey = Object.keys(data).find(key => data[key].email === currentUser.email);
+            if(benchKey) {
+                db.ref(`bookings/${today}/${s}/${benchKey}`).update({arrived: true});
+                alert("Checked in!"); window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+    }
+}
+
+function printRegister() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    db.ref(`bookings/${d}/${s}`).once('value', (snap) => {
+        const data = snap.val() || {};
+        let tableHtml = `<h2>AA Workshop Register - ${d} (${s})</h2>`;
+        tableHtml += `<table><thead><tr><th>Bench</th><th>Name</th><th>Status</th></tr></thead><tbody>`;
+        for(let i=1; i<=25; i++) {
+            const b = data['bench'+i];
+            const status = b ? (b.arrived ? "PRESENT" : (b.type === "maint" ? "SERVICE" : "ABSENT")) : "EMPTY";
+            tableHtml += `<tr><td>Bench ${i}</td><td>${b ? b.name : "-"}</td><td>${status}</td></tr>`;
+        }
+        tableHtml += `</tbody></table>`;
+        document.getElementById("printArea").innerHTML = tableHtml;
+        window.print();
+    });
+}
+
+function clearEntireSlot() {
+    const d = document.getElementById("dateSelect").value;
+    const s = document.getElementById("slotSelect").value;
+    if(confirm(`Are you sure you want to WIPE all bookings for ${s}?`)) {
+        db.ref(`bookings/${d}/${s}`).remove();
+    }
+}
+
+function staffLogin() {
+    if(prompt("PIN:") === "workshop123") {
+        isStaff = true; document.body.classList.add("staffMode");
+        document.getElementById("staffSessionUI").style.display = "inline-block"; 
+        document.getElementById("staffMainTools").style.display = "block";
+        document.getElementById("staffNoticeTools").style.display = "block";
+        document.getElementById("staffWlInput").style.display = "block";
+        document.getElementById("qrSection").style.display = "block";
+        document.getElementById("loginBtn").style.display = "none"; 
+        document.getElementById("staffBtn").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "inline-block"; 
+        refreshGrid(); renderWaitlist();
+    }
+}
+
+function saveNotice() {
+    const txt = document.getElementById("noticeInput").value;
+    db.ref('aa_notice').set(txt);
+}
+
+function toggleSiren() {
+    const currentState = document.body.classList.contains("siren-active");
+    db.ref('aa_siren').set(!currentState);
+}
+
+function addToWaitlist() {
+    const n = document.getElementById("wlName").value.trim();
+    if(!n) {
+        alert("Please enter a valid name.");
+        return;
+    }
+    if(n.length < 2 || n.length > 50) {
+        alert("Name must be between 2 and 50 characters.");
+        return;
+    }
+    if(!/^[a-zA-Z\s]+$/.test(n)) {
+        alert("Name can only contain letters and spaces.");
+        return;
+    }
+    
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
+        // Check for duplicates
+        if(list.some(item => item.name.toLowerCase() === n.toLowerCase())) {
+            alert("This person is already on the waitlist.");
+            return;
+        }
+        list.push({name: n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+        db.ref('aa_waitlist').set(list);
+        document.getElementById("wlName").value = "";
+        alert(`${n} has been added to the waitlist. Position: ${list.length}`);
+    });
+}
+
+function renderWaitlist() {
+    db.ref('aa_waitlist').on('value', (snap) => {
+        const cont = document.getElementById("waitlistContent"), list = snap.val() || [];
+        cont.innerHTML = list.length ? "" : "<p style='font-size:12px; opacity:0.6;'>No one waiting.</p>";
+        list.forEach((item, idx) => {
+            const div = document.createElement("div");
+            div.style.cssText = "background:rgba(0,0,0,0.05); margin:5px 0; padding:8px; border-radius:8px; display:flex; justify-content:space-between; font-size:12px;";
+            div.innerHTML = `<span>#${idx + 1} <b>${item.name}</b> <small style="opacity:0.6">(${item.time})</small></span>`;
+            if(isStaff) {
+                const del = document.createElement("span"); del.innerText = "×"; del.style.cssText="cursor:pointer; color:red; font-weight:bold;";
+                del.onclick = () => { list.splice(idx,1); db.ref('aa_waitlist').set(list); };
+                div.appendChild(del);
+            }
+            cont.appendChild(div);
+        });
+    });
+}
+
+function checkWaitlistAndFill(path) {
+    db.ref('aa_waitlist').once('value', (snap) => {
+        const list = snap.val() || [];
+        if(list.length) {
+            const next = list.shift();
+            db.ref('aa_waitlist').set(list);
+            db.ref(path).set({name: next.name, email: next.email, arrived: false});
+            sendWaitlistNotification(next.name, {bench: path.split("/")[2], session: path.split("/")[1], date: path.split("/")[0], deadline: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+        }
+    });
+}
+
+function checkTimeouts() {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    sessionNames.forEach(s => {
+        const [h, m] = sessionStarts[s].split(":");
+        const limit = new Date(); limit.setHours(parseInt(h), parseInt(m) + 30, 0);
+        if (now > limit) {
+            db.ref(`bookings/${today}/${s}`).once('value', (snap) => {
+                const sessionData = snap.val() || {};
+                Object.keys(sessionData).forEach(benchKey => {
+                    const b = sessionData[benchKey];
+                    if(b && b.type !== "maint" && !b.arrived) {
+                        const path = `bookings/${today}/${s}/${benchKey}`;
+                        db.ref(path).remove();
+                        checkWaitlistAndFill(path);
+                    }
+                });
+            });
+        }
+    });
+}
 
 </script>
 </body>
 </html>
-
 
 
 
