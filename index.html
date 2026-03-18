@@ -211,7 +211,7 @@ window.onload = () => {
     loadAppData();
     checkURLForAutoCheckin();
     setInterval(checkTimeouts, 60000); 
-    refreshGrid(); // Data is now real-time, no need for refresh interval
+    refreshGrid(); 
 };
 
 function setupDates() {
@@ -226,11 +226,9 @@ function setupDates() {
 }
 
 function loadAppData() {
-    // Sync Notice Board from Cloud
     db.ref('aa_notice').on('value', (s) => {
         if(s.val()) document.getElementById("bulletinText").innerText = s.val();
     });
-    // Sync Siren from Cloud
     db.ref('aa_siren').on('value', (s) => {
         if(s.val()) document.body.classList.add("siren-active");
         else document.body.classList.remove("siren-active");
@@ -254,7 +252,6 @@ function refreshGrid() {
     const d = document.getElementById("dateSelect").value;
     const activeS = document.getElementById("slotSelect").value;
     
-    // Connect to Real-time Cloud Data
     db.ref(`bookings/${d}`).on('value', (snapshot) => {
         const data = snapshot.val() || {};
         mainG.innerHTML = ""; yardG.innerHTML = "";
@@ -271,7 +268,6 @@ function refreshGrid() {
                 btn.className = "slot-seg " + (b ? (b.type === "maint" ? "maint" : (b.arrived ? "arrived" : "booked")) : "available");
                 btn.innerText = b ? (b.type === "maint" ? "🔧" : b.name.split(' ')[0]) : s;
                 
-                // Key construction for Firebase
                 const path = `bookings/${d}/${s}/bench${i}`;
                 btn.onclick = () => isStaff ? handleStaffClick(path, b) : handleStudentClick(path, b, s, d);
                 container.appendChild(btn);
@@ -298,13 +294,11 @@ function checkWaitlistAndFill(path) {
             db.ref(path).set(newBooking);
             db.ref('aa_waitlist').set(list);
             
-            // Extract session info from path for notification
             const pathParts = path.split('/');
             const date = pathParts[1];
             const session = pathParts[2];
             const bench = pathParts[3];
             
-            // Send notification to the user
             sendWaitlistNotification(nextInLine.name, {
                 bench: bench.replace('bench', ''),
                 session: session,
@@ -312,7 +306,6 @@ function checkWaitlistAndFill(path) {
                 deadline: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
             });
             
-            // Show notification to staff if logged in
             if(isStaff) {
                 alert(`🎉 ${nextInLine.name} has been automatically booked from waitlist!\nBench: ${bench.replace('bench', '')}\nSession: ${session}\nDate: ${date}\n⏰ Has 10 minutes to arrive!`);
             }
@@ -429,7 +422,6 @@ function addToWaitlist() {
     
     db.ref('aa_waitlist').once('value', (snap) => {
         let list = snap.val() || [];
-        // Check for duplicates
         if(list.some(item => item.name.toLowerCase() === n.toLowerCase())) {
             alert("This person is already on the waitlist.");
             return;
@@ -481,7 +473,6 @@ function handleStudentClick(path, b, s, d) {
 function doLogin() {
     const f = document.getElementById("fName").value.trim(), s = document.getElementById("sName").value.trim(), p = document.getElementById("loginPass").value.trim();
     
-    // Validation
     if(!f || !s || !p) {
         alert("Please fill in all fields.");
         return;
@@ -532,8 +523,6 @@ function checkURLForAutoCheckin() {
         });
     }
 }
-function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
-function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
 
 function openLogin() { document.getElementById("loginModal").style.display = "flex"; }
 function closeLogin() { document.getElementById("loginModal").style.display = "none"; }
@@ -550,8 +539,6 @@ function logout() {
     location.reload(); 
 }
 
-// Notification System Functions
-
 function sendWaitlistNotification(userName, bookingDetails) {
     db.ref('user_profiles').once('value', (snap) => {
         const profiles = snap.val() || {};
@@ -559,17 +546,14 @@ function sendWaitlistNotification(userName, bookingDetails) {
         
         const message = `🎉 Workshop Booking Confirmed!\n\nBench: ${bookingDetails.bench}\nSession: ${bookingDetails.session}\nDate: ${bookingDetails.date}\n\n⏰ You have 10 minutes to arrive!\nDeadline: ${bookingDetails.deadline}`;
         
-        // Send email notification
         if(userProfile.email && userProfile.emailNotif) {
             sendEmail(userProfile.email, message);
         }
         
-        // Send SMS notification
         if(userProfile.phone && userProfile.smsNotif) {
             sendSMS(userProfile.phone, message);
         }
         
-        // Send browser popup notification
         if(userProfile.popupNotif) {
             sendBrowserNotification(userName, message);
         }
@@ -577,12 +561,10 @@ function sendWaitlistNotification(userName, bookingDetails) {
 }
 
 function sendEmail(email, message) {
-    // For demo purposes - in production, integrate with email service
     console.log("Email sent to:", email, "Message:", message);
 }
 
 function sendSMS(phone, message) {
-    // For demo purposes - in production, integrate with SMS service like Twilio
     console.log("SMS sent to:", phone, "Message:", message);
 }
 
@@ -628,13 +610,11 @@ function saveProfile() {
         popupNotif: document.getElementById("popupNotif").checked
     };
     
-    // Validate email if email notifications are enabled
     if(profile.emailNotif && !profile.email) {
         alert("Please provide an email address to receive email notifications.");
         return;
     }
     
-    // Validate phone if SMS notifications are enabled
     if(profile.smsNotif && !profile.phone) {
         alert("Please provide a phone number to receive SMS notifications.");
         return;
@@ -644,27 +624,6 @@ function saveProfile() {
     localStorage.setItem("aa_profile", JSON.stringify(profile));
     alert("Notification preferences saved!");
     closeProfile();
-}
-
-function checkWaitlistAndFill(path) {
-    db.ref('aa_waitlist').once('value', (snap) => {
-        const list = snap.val() || [];
-        if(list.length) {
-            const next = list.shift();
-            db.ref('aa_waitlist').set(list);
-            db.ref(path).set({name: next.name, email: next.email, arrived: false});
-            const pathParts = path.split('/');
-            const bench = pathParts[2];
-            const session = pathParts[1];
-            const date = pathParts[0];
-            sendWaitlistNotification(next.name, {
-                bench: bench.replace('bench', ''),
-                session: session,
-                date: date,
-                deadline: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
-            });
-        }
-    });
 }
 
 </script>
