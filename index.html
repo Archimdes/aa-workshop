@@ -98,15 +98,17 @@
             </div>
         </div>
 
-        <div class="side-card">
-            <h3 style="margin-top:0">🕒 Waitlist</h3>
-            <div id="waitlistContent"></div>
-            <div id="staffWlInput" style="display:none; margin-top:10px;">
-                <input type="text" id="wlName" placeholder="Student Name">
-                <button class="button" style="width:100%; margin-top:5px;" onclick="addToWaitlist()">Add to List</button>
-            </div>
-        </div>
+       <div class="side-card">
+    <h3 style="margin-top:0">🕒 Waitlist</h3>
+    <div id="waitlistContent"></div>
+    
+    <div id="staffWlInput" style="display:none; margin-top:10px; position: relative;">
+        <input type="text" id="wlSearch" placeholder="Search registered student..." oninput="searchUsers(this.value)">
+        <div id="searchResults" style="display:none; position:absolute; background:var(--input-bg); width:100%; border:1px solid #ddd; border-radius:4px; z-index:10; max-height:150px; overflow-y:auto; box-shadow:0 4px 6px rgba(0,0,0,0.1); color: #000;"></div>
+        <input type="hidden" id="selectedUser">
+        <button class="button" id="addWlBtn" style="width:100%; margin-top:5px; opacity:0.5;" onclick="addToWaitlist()" disabled>Add to List</button>
     </div>
+</div>
 
     <div id="mainContent">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -405,21 +407,22 @@
         });
     }
 
-    function handleStaffClick(path, b) {
-        const act = prompt("1: Arrived, 2: Clear/Auto-Assign, 3: Maintenance");
+   function handleStaffClick(path, b) {
+    const act = prompt("1: Arrived, 2: Clear & Auto-Fill, 3: Maintenance");
 
-        if (act === "1" && b) { 
-            db.ref(path).update({ arrived: true }); 
-        } 
-        else if (act === "2") {
-            db.ref(path).remove(() => {
-                checkWaitlistAndFill(path); // Auto fill if empty
-            });
-        } 
-        else if (act === "3") {
-            db.ref(path).set({ type: "maint", name: "SERVICE" });
-        }
+    if (act === "1" && b) { 
+        db.ref(path).update({ arrived: true }); 
+    } 
+    else if (act === "2") {
+        // This 'remove' now triggers the 'checkWaitlistAndFill' chain reaction
+        db.ref(path).remove().then(() => {
+            checkWaitlistAndFill(path);
+        });
+    } 
+    else if (act === "3") {
+        db.ref(path).set({ type: "maint", name: "SERVICE" });
     }
+}
 
     function handleStudentClick(path, b, s, d) {
         if(!currentUser) { openLogin(); return; }
@@ -537,30 +540,37 @@
         });
     }
 
-    function addToWaitlist() {
-        const nameInput = document.getElementById("wlName");
-        const name = nameInput.value.trim();
-        if(!name) return;
+  function addToWaitlist() {
+    const userDataStr = document.getElementById("selectedUser").value;
+    if(!userDataStr) return;
+    
+    const user = JSON.parse(userDataStr);
+    
+    db.ref('aa_waitlist').once('value', (snap) => {
+        let list = snap.val() || [];
         
-        db.ref('aa_waitlist').once('value', (snap) => {
-            let list = snap.val() || [];
-            
-            // If a student is adding themselves, save their email and UID so EmailJS works later
-            const waitlistData = {
-                name: name,
-                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
-            };
-            if(currentUser && !isStaff) {
-                waitlistData.email = currentUser.email;
-                waitlistData.uid = currentUser.uid;
-            }
+        // Prevent duplicates
+        if(list.some(item => item.uid === user.uid)) {
+            alert("Student is already on the waitlist.");
+            return;
+        }
 
-            list.push(waitlistData);
-            db.ref('aa_waitlist').set(list);
-            nameInput.value = "";
+        list.push({
+            name: user.name,
+            uid: user.uid,
+            email: user.email,
+            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         });
-    }
-
+        
+        db.ref('aa_waitlist').set(list);
+        
+        // Reset the search UI
+        document.getElementById("wlSearch").value = "";
+        document.getElementById("selectedUser").value = "";
+        document.getElementById("addWlBtn").disabled = true;
+        document.getElementById("addWlBtn").style.opacity = "0.5";
+    });
+}
     function sendBookingEmail(bookingDetails) {
         const templateParams = {
             user_name: currentUser.name,
@@ -574,7 +584,82 @@
             .then(() => console.log('Confirmation email sent!'))
             .catch((err) => console.error('Email error:', err));
     }
+function searchUsers(query) {
+    const resultsDiv = document.getElementById("searchResults");
+    const addBtn = document.getElementById("addWlBtn");
+    
+    if (query.length < 1) {
+        resultsDiv.style.display = "none";
+        return;
+    }
 
+    // This queries your Firebase 'users' node for matches
+    db.ref('users').orderByChild('fullName').startAt(query).endAt(query + "\uf8ff").once('value', (snap) => {
+        const users = snap.val();
+        resultsDiv.innerHTML = "";
+        
+        if (users) {
+            resultsDiv.style.display = "block";
+            Object.keys(users).forEach(uid => {
+                const user = users[uid];
+                const div = document.createElement("div");
+                div.style.cssText = "padding:8px; cursor:pointer; border-bottom:1px solid #eee; background: white; color: black;";
+                div.innerText = user.fullName;
+                div.onclick = () => {
+                    document.getElementById("wlSearch").value = user.fullName;
+                    document.getElementById("selectedUser").value = JSON.stringify({
+                        uid: uid,
+                        name: user.fullName,
+                        email: user.email
+                    });
+                    resultsDiv.style.display = "none";
+                    addBtn.disabled = false;
+                    addBtn.style.opacity = "1";
+                };
+                resultsDiv.appendChild(div);
+            });
+        } else {
+            resultsDiv.style.display = "none";
+        }
+    });
+}
+
+function checkWaitlistAndFill(path) {
+    db.ref('aa_waitlist').once('value', (snap) => {
+        const list = snap.val() || [];
+        
+        if (list.length > 0) {
+            const nextStudent = list.shift(); // Takes the person at the top
+            
+            db.ref('aa_waitlist').set(list); // Updates waitlist
+            
+            // Fills the empty bench slot
+            db.ref(path).set({
+                name: nextStudent.name,
+                email: nextStudent.email,
+                uid: nextStudent.uid,
+                arrived: false
+            }).then(() => {
+                // Notifies them via EmailJS
+                const pathParts = path.split('/');
+                const benchName = "Bench " + pathParts[3].replace('bench', '');
+                
+                sendWaitlistNotification(nextStudent, {
+                    bench: benchName,
+                    session: pathParts[2],
+                    date: pathParts[1]
+                });
+            });
+        }
+    });
+}
+
+// Close the search dropdown if you click anywhere else
+document.addEventListener('click', (e) => {
+    if (e.target.id !== 'wlSearch') {
+        document.getElementById("searchResults").style.display = "none";
+    }
+});
     // --- UTILITY & STAFF FUNCTIONS ---
     function checkTimeouts() {
         const today = new Date().toISOString().split('T')[0];
